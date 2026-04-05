@@ -281,20 +281,15 @@ local function spellmerchant_update(e)
 
       service_chances[spell] = spell_chance
 
-      local max_school = {value = 0, school = 1}
+      local max_school = {value = 0, school = 0}
       local stored_spell = tes3.player.data.motte_spell_storage[spell_id]
       if stored_spell then
         for k=1, 6 do
           if max_school.value < stored_spell.skill_table[k] then
             max_school.value = stored_spell.skill_table[k]
-            max_school.school = k
+            max_school.school = k - 1  -- convert +1 packed index back to raw school index (0-5)
           end
         end
-      end
-
-      -- transform 6 from storage into 0 (this is alteration)
-      if max_school.school == 6 then
-        max_school.school = 0
       end
 
       service_school[spell] = max_school.school

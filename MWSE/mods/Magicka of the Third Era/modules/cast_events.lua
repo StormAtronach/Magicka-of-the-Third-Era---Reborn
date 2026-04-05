@@ -46,10 +46,8 @@ local function spell_chance_manipulation(e)
     magic_skill_table = spell_data.skill_table
     spell_cost = spell_data.cost
     log:trace(string.format("Spell %s found in storage. Preparing for cast chance calculations", spell_id))
-    -- we are using 6 here because of a lua bug
     if caster.alteration and caster.conjuration and caster.destruction and caster.illusion and caster.mysticism and caster.restoration then
-      skill_for_spell = magic_skill_table[6] * caster.alteration.current + magic_skill_table[1] * caster.conjuration.current + magic_skill_table[2] * caster.destruction.current +
-      magic_skill_table[3] * caster.illusion.current + magic_skill_table[4] * caster.mysticism.current + magic_skill_table[5] * caster.restoration.current
+      skill_for_spell = SM.compute_skill(magic_skill_table, caster)
     else
       skill_for_spell = 9999 -- creature casters
     end
@@ -193,23 +191,23 @@ local function exp_gain(e)
     magic_skill_table = spell_data.skill_table
     spell_cost = spell_data.cost
     -- level only if base skill < 100
-    if caster.destruction.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(10, spell_cost * magic_skill_table[2] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_destruction / 100)
-    end
     if caster.alteration.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(11, spell_cost * magic_skill_table[6] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_alteration / 100)
-    end
-    if caster.illusion.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(12, spell_cost * magic_skill_table[3] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_illusion / 100)
+      caster:exerciseSkill(11, spell_cost * magic_skill_table[1] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_alteration / 100)
     end
     if caster.conjuration.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(13, spell_cost * magic_skill_table[1] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_conjuration / 100)
+      caster:exerciseSkill(13, spell_cost * magic_skill_table[2] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_conjuration / 100)
+    end
+    if caster.destruction.base < 100 or config.leveling_uncapped then
+      caster:exerciseSkill(10, spell_cost * magic_skill_table[3] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_destruction / 100)
+    end
+    if caster.illusion.base < 100 or config.leveling_uncapped then
+      caster:exerciseSkill(12, spell_cost * magic_skill_table[4] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_illusion / 100)
     end
     if caster.mysticism.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(14, spell_cost * magic_skill_table[4] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_mysticism / 100)
+      caster:exerciseSkill(14, spell_cost * magic_skill_table[5] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_mysticism / 100)
     end
     if caster.restoration.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(15, spell_cost * magic_skill_table[5] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_restoration / 100)
+      caster:exerciseSkill(15, spell_cost * magic_skill_table[6] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_restoration / 100)
     end
   else
     -- If spell is not in the DB for some reason.

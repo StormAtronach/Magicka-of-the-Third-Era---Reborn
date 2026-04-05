@@ -3,8 +3,8 @@
 --
 -- Storage format for motte_spell_storage[spell_id]:
 --   { cost, skill_table, cost_mod, chance_mod }
---   skill_table uses index 6 for Alteration (workaround for Lua index-0 save issue):
---   [1]=Conjuration [2]=Destruction [3]=Illusion [4]=Mysticism [5]=Restoration [6]=Alteration
+--   skill_table uses +1 packed indices (school + 1 = index):
+--   [1]=Alteration [2]=Conjuration [3]=Destruction [4]=Illusion [5]=Mysticism [6]=Restoration
 --
 -- WIP — modifier system design notes:
 --   Goal: compute cost_mod and chance_mod from "modifier effects" in a spell,
@@ -269,7 +269,8 @@ this.effect_cost_advanced = function(effect)
 	if not t then
 		local school = effect.object and effect.object.school or 0
 		t = school_defaults[school + 1] or school_defaults[1]
-		log:warn(string.format("Effect ID %d not in spell table, using school %d defaults.", effect.id, school))
+		log:warn(string.format("Effect ID %d (%s) not in spell table, using school %d defaults.",
+			effect.id, effect.object and effect.object.name or "unknown", school))
 	end
 	if t then
 		-- get everything from the table, if possible
@@ -428,10 +429,11 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 		t = spell_table[non_modifier_effect_array[i].id]
 		if not t then
 			local school = non_modifier_effect_array[i].object and non_modifier_effect_array[i].object.school or 0
-			local defaults_idx = school == 0 and 6 or school
-			t = school_defaults[defaults_idx] or school_defaults[6]
-			log:warn(string.format("Effect ID %d not in spell table, using school %d defaults.", non_modifier_effect_array[i].id,
-			                       school))
+			t = school_defaults[school + 1] or school_defaults[1]
+			log:warn(string.format("Effect ID %d (%s) not in spell table, using school %d defaults.",
+				non_modifier_effect_array[i].id,
+				non_modifier_effect_array[i].object and non_modifier_effect_array[i].object.name or "unknown",
+				school))
 		end
 		if t then
 			-- basic
@@ -587,7 +589,7 @@ end
 -- Compute the player's effective skill for a spell from the stored skill_table.
 -- skill_table uses the +1 packed format: index = school + 1.
 -- [1]=Alteration, [2]=Conjuration, [3]=Destruction, [4]=Illusion, [5]=Mysticism, [6]=Restoration.
-local function compute_skill(skill_table, mobile)
+function this.compute_skill(skill_table, mobile)
 	for i = 1, 6 do
 		if skill_table[i] == nil then
 			log:error(string.format(
@@ -651,7 +653,7 @@ function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobi
 		else
 			local spell_cost = spell_data.cost
 			log:trace(string.format("Spell %s found in storage. Cost: %.2f.", spell, spell_cost))
-			local skill_for_spell = mobile and compute_skill(skill_table, mobile) or 0
+			local skill_for_spell = mobile and this.compute_skill(skill_table, mobile) or 0
 			return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = skill_table }
 		end
 	end
@@ -730,7 +732,7 @@ function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobi
 			chance_mod = 1,
 		}
 
-		local skill_for_spell = mobile and compute_skill(packed_table, mobile) or 0
+		local skill_for_spell = mobile and this.compute_skill(packed_table, mobile) or 0
 		return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = packed_table }
 
 	else

@@ -177,6 +177,29 @@ end
 event.register("initialized", override_uiexpansion, { priority = 99 })
 event.register("initialized", initialized)
 
+-- Update the HUD spell fillbar to show mastery (chance/60) in determinism mode 2.
+local SpellManager_hud = require("Magicka of the Third Era.modules.spell_manager")
+local Formulas_hud     = require("Magicka of the Third Era.modules.formulas")
+local premade_hud      = require("Magicka of the Third Era.data.premade_spells")
+event.register("uiActivated", function(e)
+  e.element:registerAfter("preUpdate", function()
+    if config.determinism_mode ~= 2 then return end
+    local fill = e.element:findChild("MenuMulti_magic_fill")
+    if not fill then return end
+    local mobile = tes3.mobilePlayer
+    if not mobile then return end
+    local spell = mobile.currentSpell
+    if not spell or spell.castType ~= tes3.spellType.spell then return end
+    local result = SpellManager_hud.get_or_calculate(spell, premade_hud, false, mobile)
+    if not result then return end
+    local spell_chance = Formulas_hud.calculate_cast_chance(result.cost, mobile.willpower.current, mobile.luck.current, result.skill_for_spell)
+    local mastery = math.min(math.floor(spell_chance * 100 / 60), 100)
+    fill.widget.current = mastery
+    fill.widget.max     = 100
+    fill:updateLayout()
+  end)
+end, { filter = "MenuMulti" })
+
 
 -- MCM --
 

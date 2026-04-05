@@ -257,11 +257,7 @@ local function spellmerchant_update(e)
         log:trace(string.format("Spell %s has 100 percent success rate.", spell.id))
       end
       if config.determinism_mode == 2 or determinist_spell then
-        if spell_chance > 60 then
-          chance_text = tostring(math.floor(spell_chance)) .. "(100)"
-        else
-          chance_text = tostring(math.floor(spell_chance)) .. "(0)"
-        end
+        chance_text = tostring(math.min(math.floor(spell_chance * 100 / 60), 100))
       elseif config.determinism_mode == 3 then
         spell_chance = Formulas.apply_hybrid_mode(spell_chance)
         chance_text = tostring(spell_chance)
@@ -272,7 +268,8 @@ local function spellmerchant_update(e)
         chance_text = tostring(math.floor(spell_chance))
       end
 
-      names[i].text = tostring(spell.name) .. " | " .. gold_text .. " Gold | " .. cost_text .. " Base Cost | " .. chance_text .. " Cast Chance"
+      local chance_label = (config.determinism_mode == 2 or determinist_spell) and "Mastery" or "Cast Chance"
+      names[i].text = tostring(spell.name) .. " | " .. gold_text .. " Gold | " .. cost_text .. " Base Cost | " .. chance_text .. " " .. chance_label
       if not (config.ui_extended_spell_merchant) then
         service_text.base_texts[spell] = names[i].text
       else
@@ -295,7 +292,11 @@ local function spellmerchant_update(e)
       service_school[spell] = max_school.school
       service_text.gold_texts[spell] = gold_text .. " Gold"
       service_text.cost_texts[spell] = cost_text .. " Base Cost"
-      service_text.chance_texts[spell] = chance_text .. " Cast Chance"
+      if config.determinism_mode == 2 or determinist_spell then
+        service_text.chance_texts[spell] = chance_text .. " Mastery"
+      else
+        service_text.chance_texts[spell] = chance_text .. " Cast Chance"
+      end
 
     end
   end
@@ -479,6 +480,10 @@ local function magic_menu_update(e)
         local names = e.element:findChild("MagicMenu_spell_names").children
         local costs = e.element:findChild("MagicMenu_spell_costs").children
         local chances = e.element:findChild("MagicMenu_spell_percents").children
+        local cost_title = e.element:findChild("MagicMenu_spell_cost_title")
+        if cost_title then
+          cost_title.text = (config.determinism_mode == 2) and "Cost/Mastery" or "Cost/Chance"
+        end
         for i=1, #names do
             local spell = names[i]:getPropertyObject("MagicMenu_Spell")
             local spell_cost = 0
@@ -539,11 +544,7 @@ local function magic_menu_update(e)
                 log:trace(string.format("Spell %s has 100 percent success rate.", spell.id))
               end
               if config.determinism_mode == 2 or determinist_spell then
-                if spell_chance > 60 then
-                  chances[i].text = "/" .. tostring(math.floor(spell_chance)) .. "(100)"
-                else
-                  chances[i].text = "/" .. tostring(math.floor(spell_chance)) .. "(0)"
-                end
+                chances[i].text = "/" .. tostring(math.min(math.floor(spell_chance * 100 / 60), 100))
               elseif config.determinism_mode == 3 then
                 spell_chance = Formulas.apply_hybrid_mode(spell_chance)
                 chances[i].text = "/" .. tostring(spell_chance)

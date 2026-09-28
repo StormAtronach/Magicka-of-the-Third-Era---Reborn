@@ -136,8 +136,29 @@ local function resolve_effect_params(effect, area_pow_default)
 	return p
 end
 
+-- How a synergy rule compares a field of an effect with the rule's value.
+local comparators = {
+	["equal"] = function(a, b) return a == b end,
+	["not equal"] = function(a, b) return a ~= b end,
+	["greater"] = function(a, b) return a > b end,
+	["greater or equal"] = function(a, b) return a >= b end,
+	["less"] = function(a, b) return a < b end,
+	["less or equal"] = function(a, b) return a <= b end,
+}
+
+--- Whether an effect meets every condition of a synergy rule.
+local function effect_fits_rule(effect, rule)
+	for _, condition in ipairs(rule) do
+		local compare = comparators[condition.sign]
+		-- A sign that is not in the table puts no condition on the effect.
+		if compare and not compare(effect[condition.field], condition.value) then
+			return false
+		end
+	end
+	return true
+end
+
 local function detect_synergies(effect_db, effect_costs, synergy_array)
-	-- preparation
 	-- MODIFIERS: unsure if I have to do anything here. maybe skip modifier effects? but if they're not a part of a synergy then it's fine?
 	local synergy_bonuses = { synergy_ids = {}, cost_discount = 0 }
 	local total_effect_cost = 0
@@ -147,124 +168,41 @@ local function detect_synergies(effect_db, effect_costs, synergy_array)
 
 	-- go through every synergy to see if it fits. It's not optimized atm, but seems to work well. Maybe lua is effective enough.
 	for i, synergy in ipairs(synergy_array) do
-
-		-- local effect_check_array = {}
-		-- for j=1, required_effect_amount do
-		--  effect_check_array[effects_required[j]] = -1
-		-- end
-
-		local synergy_rules = synergy.rules
-		local synergy_fulfilment_array = {}
-		for a = 1, #synergy_rules do
-			synergy_fulfilment_array[a] = -1
-		end
-
-		-- iterate through each rule (pick each for one synergy)
-		for j, rule in ipairs(synergy_rules) do
-			-- iterate through each effect
-			for v, effect in ipairs(effect_db) do
-				-- print(string.format("Effect ID: %d. Mag: %d-%d. ", effect.id, effect.min, effect.max))
-				local is_legit_effect = true
-				local rule_fulfilment_array = {}
-				for b = 1, #rule do
-					rule_fulfilment_array[b] = -1
-				end
-				-- iterate through each part of rule, for each effect
-				for k, item in ipairs(rule) do
-					-- print(string.format("Rule part requirement: %s is %s %d", item.field, item.sign, item.value))
-					local field_value = effect[item.field]
-					-- convert the sign into condition
-					if item.sign == "equal" then
-						if field_value == item.value then
-							-- print("Rule part satisfied!")
-						else
-							-- print("Rule part not satisfied!")
-							is_legit_effect = false
-						end
-					elseif item.sign == "greater" then
-						if field_value > item.value then
-							-- print("Rule part satisfied!")
-						else
-							-- print("Rule part not satisfied!")
-							is_legit_effect = false
-						end
-					elseif item.sign == "greater or equal" then
-						if field_value >= item.value then
-							-- print("Rule part satisfied!")
-						else
-							-- print("Rule part not satisfied!")
-							is_legit_effect = false
-						end
-					elseif item.sign == "less" then
-						if field_value < item.value then
-							-- print("Rule part satisfied!")
-						else
-							-- print("Rule part not satisfied!")
-							is_legit_effect = false
-						end
-					elseif item.sign == "less or equal" then
-						if field_value <= item.value then
-							-- print("Rule part satisfied!")
-						else
-							-- print("Rule part not satisfied!")
-							is_legit_effect = false
-						end
-					elseif item.sign == "not equal" then
-						if field_value ~= item.value then
-							-- print("Rule part satisfied!")
-						else
-							-- print("Rule part not satisfied!")
-							is_legit_effect = false
-						end
-					end
-					-- if satisfies this part, for this part's id, set it's value in array to effect number
-					if is_legit_effect then
-						-- print(string.format("Effect number %d satisfies rule %d of the synergy rule array for rule no. %d", v, j, i))
-						rule_fulfilment_array[k] = v
-					end
-				end
-				-- now that our effect passed through every part of rule, check the fulfilment array. if at least one is wrong, the effect is not legit for the rule.
-				for c = 1, #rule_fulfilment_array do
-					if rule_fulfilment_array[c] == -1 then
-						is_legit_effect = false
-					end
-				end
-				-- if effect satisfies all conditions described in this rule, we write it down
-				if is_legit_effect then
-					synergy_fulfilment_array[j] = v
-				end
-			end
-		end
-
-		-- check the synergy array whether all the rules are satisfied
+		-- For each rule, the last effect that fits it. A synergy works when every rule has one.
+		local fitting_effects = {}
 		local synergy_works = true
-		for d = 1, #synergy_fulfilment_array do
-			if synergy_fulfilment_array[d] == -1 then
-				synergy_works = false
+		for j, rule in ipairs(synergy.rules) do
+			for v, effect in ipairs(effect_db) do
+				if effect_fits_rule(effect, rule) then
+					fitting_effects[j] = v
+				end
 			end
-			-- print(string.format("Rule number %d. Satisfied by effect number: %d.", d, synergy_fulfilment_array[d]))
+			if not fitting_effects[j] then
+				synergy_works = false
+				break
+			end
 		end
 
 		if synergy_works then
-			log:trace(string.format("Synergy %s works for this spell!", synergy.name, synergy.benefit.type))
+			log:trace("Synergy %s works for this spell!", synergy.name)
 			table.insert(synergy_bonuses.synergy_ids, i)
-			local effect_weight = 0
 			-- weight is equal to the lowest relevant / total cost
-			for d = 1, #synergy_fulfilment_array do
+			-- A weight of 0 counts as not set yet, so an effect that costs 0 only sets the weight when it comes last.
+			local effect_weight = 0
+			for _, v in ipairs(fitting_effects) do
 				if effect_weight == 0 then
-					effect_weight = effect_costs[synergy_fulfilment_array[d]]
+					effect_weight = effect_costs[v]
 				else
-					effect_weight = math.min(effect_weight, effect_costs[synergy_fulfilment_array[d]])
+					effect_weight = math.min(effect_weight, effect_costs[v])
 				end
 			end
 			effect_weight = effect_weight / total_effect_cost
-			log:trace(string.format("Weight for this synergy: %.2f", effect_weight))
+			log:trace("Weight for this synergy: %.2f", effect_weight)
 			-- for now only cost discount is supported
 			if synergy.benefit.type == "cost_discount" then
 				synergy_bonuses.cost_discount = synergy_bonuses.cost_discount + effect_weight * synergy.benefit.value
 			end
 		end
-
 	end
 
 	return synergy_bonuses

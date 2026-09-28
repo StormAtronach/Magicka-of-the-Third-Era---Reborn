@@ -23,6 +23,7 @@
 -- Data written into the game's records, which the original mod kept in a plugin:
 --   data/magic_effects.lua       base costs, what spellmakers and enchanters offer, descriptions
 --   data/spells.lua              the spells the mod changes or adds
+--   data/merchants.lua           spells and items NPCs gain or lose
 
 local config = require("Magicka of the Third Era.config")
 local log = mwse.Logger.new{
@@ -130,6 +131,7 @@ local function initialized()
 
   event.register(tes3.event.loaded, load_storage)
   event.register(tes3.event.loaded, magicka_expanded_spells)
+  event.register(tes3.event.loaded, GameData.apply_npcs)
   -- Disable vanilla spellmaking value and spellprice mechanics, if mods enable it again via script, it won't be pretty.
   tes3.findGMST("fSpellMakingValueMult").value = 0
   tes3.findGMST("fSpellValueMult").value = 0

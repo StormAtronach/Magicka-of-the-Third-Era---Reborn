@@ -1,5 +1,5 @@
 -- game_data.lua
--- Writes the mod's data into the game's records: magic effects and spells.
+-- Writes the mod's data into the game's records: magic effects, spells, and what NPCs know and carry.
 -- The original mod did this with a plugin. The tables in data/ replace it, and they win over
 -- what the plugins of other mods say about the same records.
 
@@ -8,6 +8,7 @@ local log = mwse.Logger.new{ modName = "Magicka of the Third Era", moduleName = 
 
 local magic_effects = require("Magicka of the Third Era.data.magic_effects")
 local spells        = require("Magicka of the Third Era.data.spells")
+local merchants     = require("Magicka of the Third Era.data.merchants")
 
 local this = {}
 
@@ -71,11 +72,67 @@ local function apply_spells()
   log:debug("%d spells created", created)
 end
 
+--- Gives an NPC an item, unless the NPC has it already.
+--- tes3.addItem needs a reference, and an NPC that the player has not met yet has none.
+---@param npc tes3npc
+---@param item_id string
+---@param count number
+local function give_item(npc, item_id, count)
+  local item = tes3.getObject(item_id)
+  ---@cast item tes3item
+  if not item then
+    log:warn("%s cannot get %s, which is not in the game", npc.id, item_id)
+  elseif not npc.inventory:contains(item) then
+    npc.inventory:addItem({ item = item, count = count })
+  end
+end
+
+---@param id string
+---@return tes3npc?
+local function find_npc(id)
+  local npc = tes3.getObject(id)
+  if npc and npc.objectType == tes3.objectType.npc then
+    ---@cast npc tes3npc
+    return npc
+  end
+  log:debug("the NPC %s is not in the game", id)
+end
+
+local function apply_npcs()
+  for id, data in pairs(merchants) do
+    local npc = find_npc(id)
+    if npc then
+      for _, spell_id in ipairs(data.add or {}) do
+        local spell = tes3.getObject(spell_id)
+        ---@cast spell tes3spell
+        if spell then
+          tes3.addSpell({ actor = npc, spell = spell, updateGUI = false })
+        else
+          log:warn("%s cannot learn %s, which is not in the game", id, spell_id)
+        end
+      end
+      for _, spell_id in ipairs(data.remove or {}) do
+        if npc.spells:contains(spell_id) then
+          tes3.removeSpell({ actor = npc, spell = spell_id, updateGUI = false })
+        end
+      end
+      if data.offers_spells and npc.aiConfig then npc.aiConfig.offersSpells = true end
+      for item_id, count in pairs(data.items or {}) do give_item(npc, item_id, count) end
+    end
+  end
+end
+
 --- Writes everything. Runs once, when the game has loaded its plugins.
 function this.apply()
   apply_magic_effects()
   apply_spells()
+  apply_npcs()
   log:info("game data applied")
+end
+
+--- What NPCs know and carry, again. Runs after a save has loaded, which may bring its own copy of an NPC.
+function this.apply_npcs()
+  apply_npcs()
 end
 
 return this

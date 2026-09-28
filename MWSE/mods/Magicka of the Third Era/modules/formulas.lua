@@ -12,6 +12,29 @@ for _, effect_id in ipairs(determinist_effect_table) do
   determinist_effect_set[effect_id] = true
 end
 
+-- Coefficients of the cast chance formulas, by the Chance Calculation Formula setting.
+-- Two formulas remain from an earlier three-formula set (the middle "Exp v1.2" was removed):
+--   2, "Almost Flat" (originally v1.0): higher base chance, lower skill scaling, less punishing
+--      cost exponent. Compresses the range between low-skill and high-skill builds.
+--   3, "Complex" / Baseline (originally described as "Exp v1.2 with skill-curve tweaks"): steeper
+--      skill scaling, more differentiation between builds. Recommended.
+-- Any other setting uses the baseline.
+local chance_formulas = {
+  [2] = { flat = 40, willpower = 0.2, luck = 0.12, cost_exponent = 1.21, skill = 0.83 },
+  [3] = { flat = 22, willpower = 0.4, luck = 0.25, cost_exponent = 1.4, skill = 1.65 },
+}
+
+-- A deterministic spell succeeds when its chance is above this. Mastery shows the chance as a share of it.
+local CAST_THRESHOLD = 60
+-- Sound raises costs by this share per point of magnitude.
+local SOUND_COST_PER_POINT = 0.05
+-- Magicka above this makes the player's spells cost more, see Overflowing Magicka.
+local OVERFLOW_THRESHOLD = 100
+
+-- The armor totals of get_armor_coefs, by the weight class of an item.
+local weight_classes = { [0] = "light", [1] = "medium", [2] = "heavy" }
+
+-- Share of the armor penalty each slot carries.
 -- Thanks to nimble armor mod for this, using its values for now
 local armorParts = {
 	[0] = 0.1,	-- helmet
@@ -38,13 +61,9 @@ local function get_armor_coefs(armored_actor)
 			if not stack then stack = tes3.getEquippedItem{actor = armored_actor, objectType = tes3.objectType.armor, slot = i+3} end
 		end
 		if stack then
-			local item = stack.object
-			if item.weightClass == 0 then
-				armor.light = armor.light + value
-			elseif item.weightClass == 1 then
-				armor.medium = armor.medium + value
-			elseif item.weightClass == 2 then
-				armor.heavy = armor.heavy + value
+			local class = weight_classes[stack.object.weightClass]
+			if class then
+				armor[class] = armor[class] + value
 			end
 		end
 	end
@@ -53,33 +72,7 @@ end
 
 local function calculate_cast_chance(spell_cost, willpower, luck, magic_skill)
   -- Fatigue affects spell costs instead (after chance is calculated, so it does not affect chance).
-  --
-  -- Two formulas remain from an earlier three-formula set (the middle "Exp v1.2" was removed):
-  --
-  -- Formula 2 — "Almost Flat" (originally v1.0):
-  --   flat_increase=40, skill_coef=0.83, cost_exp=1.21, willpower_coef=0.2
-  --   Higher base chance, lower skill scaling, less punishing cost exponent.
-  --   Compresses the range between low-skill and high-skill builds.
-  --
-  -- Formula 3 — "Complex" / Baseline (originally described as "Exp v1.2 with skill-curve tweaks"):
-  --   flat_increase=22, skill_coef=1.65, cost_exp=1.4, willpower_coef=0.4
-  --   Steeper skill scaling, more differentiation between builds. Recommended.
-  --
-  -- Any value other than 2 falls through to the baseline (3) coefficients.
-
-  local cast_chance = 0
-  local willpower_coeficient = 0.4
-  local luck_coeficient = 0.25
-  local spell_cost_coeficient_exp = 1.4
-  local magic_skill_coeficient = 1.65
-  local flat_increase = 22
-  if config.chance_formula == 2 then
-    willpower_coeficient = 0.2
-    luck_coeficient = 0.12
-    spell_cost_coeficient_exp = 1.21
-    magic_skill_coeficient = 0.83
-    flat_increase = 40
-  end
+  local formula = chance_formulas[config.chance_formula] or chance_formulas[3]
   -- fixing the skill values for better progression
   -- so we smooth the mid-levels 30-50 for early game balance
   -- 30 behaves as 30, but 50 behaves as 40
@@ -93,11 +86,10 @@ local function calculate_cast_chance(spell_cost, willpower, luck, magic_skill)
   if willpower > 100 then
     willpower = 100 + (willpower - 100) ^ ((100 - config.willpower_softcap) / 100)
   end
-  cast_chance = flat_increase + willpower_coeficient * willpower + luck_coeficient * luck - (spell_cost ^ spell_cost_coeficient_exp) +
-      magic_skill_coeficient * magic_skill
+  local cast_chance = formula.flat + formula.willpower * willpower + formula.luck * luck - (spell_cost ^ formula.cost_exponent) +
+      formula.skill * magic_skill
   -- Clamping might actually be not the best approach if you want to visualise just how terrible your chances of casting are (-186 chance aka you'll never cast that)
-  cast_chance = math.clamp(math.round(cast_chance), 0, 100)
-  return cast_chance
+  return math.clamp(math.round(cast_chance), 0, 100)
 end
 
 --- Applies hybrid mode shoulder transform to a raw cast chance.
@@ -182,11 +174,11 @@ end
 local function final_cast_chance(chance, spell, is_player)
   chance = base_chance(chance, spell)
   -- Bandaid: if there are some absurdly strong spells that don't have "always succeeds", NPCs will suck at casting them.
-  if chance <= 60 and not is_player and config.npc_assist then
-    chance = 61
+  if chance <= CAST_THRESHOLD and not is_player and config.npc_assist then
+    chance = CAST_THRESHOLD + 1
   end
   if is_deterministic(spell) then
-    chance = (chance > 60) and 100 or 0
+    chance = (chance > CAST_THRESHOLD) and 100 or 0
   elseif config.determinism_mode ~= 3 and chance > 0 then
     -- Flat bonus only in modes 0 and 1; mode 3 uses the hybrid formula instead.
     chance = math.min(chance + config.flat_chance_bonus, 100)
@@ -197,12 +189,12 @@ local function final_cast_chance(chance, spell, is_player)
   return chance
 end
 
---- Mastery shown for deterministic spells: how close the raw chance is to the 60 needed to succeed.
+--- Mastery shown for deterministic spells: how close the raw chance is to the threshold needed to succeed.
 --- @param chance number  Raw chance from calculate_cast_chance.
 --- @param spell tes3spell
 --- @return number
 local function mastery(chance, spell)
-  return math.min(math.floor(base_chance(chance, spell) * 100 / 60), 100)
+  return math.min(math.floor(base_chance(chance, spell) * 100 / CAST_THRESHOLD), 100)
 end
 
 --- Multiplier on a spell's stored cost from the caster's state: fatigue, sound, armor
@@ -218,7 +210,7 @@ local function cost_multiplier(mobile, wears_armor, is_player)
   -- Sound increases costs by 5% per magnitude.
   local sound_factor = 0
   if mobile.sound < 0 then
-    sound_factor = mobile.sound * -0.05
+    sound_factor = mobile.sound * -SOUND_COST_PER_POINT
   end
   -- Armor increases costs up to 100% more (by default, configurable).
   local armor_factor = 0
@@ -230,13 +222,14 @@ local function cost_multiplier(mobile, wears_armor, is_player)
     armor_factor = armor_factor * (config.armor_penalty_perc_max / 100)
   end
   local mult = 1 + (config.fatigue_penalty_mult / 100) * (1 - fatigue_normalized) + sound_factor + armor_factor
-  if is_player and mobile.magicka.current > 100 then
-    mult = mult * (1 + (mobile.magicka.current - 100) * config.overflowing_magicka_rate / 10000)
+  if is_player and mobile.magicka.current > OVERFLOW_THRESHOLD then
+    mult = mult * (1 + (mobile.magicka.current - OVERFLOW_THRESHOLD) * config.overflowing_magicka_rate / 10000)
   end
   return mult
 end
 
 return {
+  CAST_THRESHOLD        = CAST_THRESHOLD,
   calculate_cast_chance = calculate_cast_chance,
   get_armor_coefs       = get_armor_coefs,
   apply_hybrid_mode     = apply_hybrid_mode,

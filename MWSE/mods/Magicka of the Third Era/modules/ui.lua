@@ -359,7 +359,7 @@ local function spellmerchant_update(e)
     if gold_costs[spell] > gold_amount then
       label.disabled = true
       label.widget.state = 2
-    elseif service_chances[spell] <= 60 then
+    elseif service_chances[spell] <= Formulas.CAST_THRESHOLD then
       label.widget.state = 4
       label.widget.idleActive = uncastable_color
     elseif (not Known_Effects.getKnowsAllSpellEffects(knownEffects, spell)) then

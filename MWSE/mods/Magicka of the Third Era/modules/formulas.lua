@@ -109,7 +109,8 @@ local function apply_hybrid_mode(chance)
   local sa_fv = config.sa_fulcrum_value
   local sa_co = config.sa_cut_off_value
   local sa_bp = config.sa_base_probability
-  local sa_cs = config.sa_chance_step
+  -- A step of 0 would divide by zero. Configs saved by older versions can hold one.
+  local sa_cs = math.max(config.sa_chance_step, 1)
 
   if chance >= sa_co then
     return 100

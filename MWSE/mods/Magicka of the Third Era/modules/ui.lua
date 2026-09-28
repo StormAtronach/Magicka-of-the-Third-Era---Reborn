@@ -57,6 +57,9 @@ local function spellmaker_update(e)
         disp_factor = 1 + (100 - disp) * config.economy_spellmaker_diff / 10000
       end
     end
+    -- The rows show the range as text, which the engine takes from these GMSTs. They differ per game language.
+    local range_touch = tes3.findGMST(tes3.gmst.sRangeTouch).value
+    local range_target = tes3.findGMST(tes3.gmst.sRangeTarget).value
     -- Calculations for effects
     for i=1, #effect_database do
       local elem = effect_database[i]
@@ -71,11 +74,12 @@ local function spellmaker_update(e)
       local radius = elem:getPropertyInt("MenuSpellmaking_Area")
       -- Why can't you just be normal
       local range_text = elem.text
-      local range = (range_text == "Target") and 2 or (range_text == "Touch") and 1 or 0
+      local range = (range_text == range_target) and 2 or (range_text == range_touch) and 1 or 0
       local e_attribute = elem:getPropertyInt("MenuSpellmaking_Attribute")
       local e_skill = elem:getPropertyInt("MenuSpellmaking_Skill")
 
-      local effect_data = {id = effect_id, min = mag_min, max = mag_max, duration = duration, radius = radius, rangeType = range, attribute = e_attribute, skill = e_skill}
+      -- object gives effects missing from the spell table their school's defaults, like the created spell gets.
+      local effect_data = {id = effect_id, object = effect_obj, min = mag_min, max = mag_max, duration = duration, radius = radius, rangeType = range, attribute = e_attribute, skill = e_skill}
       local effect_cost = effect_cost_advanced(effect_data)
       effect_db[i] = effect_data
       cost_db[i] = effect_cost
@@ -130,9 +134,22 @@ local function spellmaker_update(e)
 
       --Needs a small delay since vanilla gets calculated right after this event, and we need to overwrite vanilla
       timer.start{type = timer.real, duration = 0.07, callback = function()
-        menu:findChild("MenuSpellmaking_SpellPointCost").text = cost_text
-        menu:findChild("MenuSpellmaking_SpellChance").text = tostring (math.round(spell_chance))
-        menu:findChild("MenuSpellmaking_PriceValueLabel").text = tostring (math.floor(spell_cost * config.economy_spellmaker_mult * disp_factor))
+        -- The menu can close before the timer fires.
+        local open_menu = tes3ui.findMenu("MenuSpellmaking")
+        if not open_menu then log:debug("spellmaker_update: the menu closed before its labels were written") return end
+        local label_texts = {
+          MenuSpellmaking_SpellPointCost = cost_text,
+          MenuSpellmaking_SpellChance = tostring (math.round(spell_chance)),
+          MenuSpellmaking_PriceValueLabel = tostring (math.floor(spell_cost * config.economy_spellmaker_mult * disp_factor)),
+        }
+        for id, text in pairs(label_texts) do
+          local label = open_menu:findChild(id)
+          if label then
+            label.text = text
+          else
+            log:warn("spellmaker_update: %s not found", id)
+          end
+        end
         end}
 
       -- save for cost checker, use disp_factor here
@@ -214,6 +231,8 @@ local function spellmerchant_update(e)
   local service_text = {base_texts = {}, gold_texts = {}, cost_texts = {}, chance_texts = {}}
   local service_chances = {}
   local gold_costs = {}
+  -- The click handlers get their spell from the row's property, so they look the price up by id.
+  local gold_costs_by_id = {}
   local service_school = {}
 
   -- process spells
@@ -243,6 +262,7 @@ local function spellmerchant_update(e)
         gold_costs[spell] = math.floor(custom_price_spells[spell_id].cost * disp_factor)
         gold_text = tostring (gold_costs[spell])
       end
+      gold_costs_by_id[spell_id] = gold_costs[spell]
       local chance_text = ""
       if spell.alwaysSucceeds and not (config.override_chances_alwaystosucceed) then
         spell_chance = 100
@@ -400,7 +420,7 @@ local function spellmerchant_update(e)
     if gold_costs[spell] > gold_amount then
       label.disabled = true
       label.widget.state = 2
-    elseif service_chances[spell] < 60 then
+    elseif service_chances[spell] <= 60 then
       label.widget.state = 4
       label.widget.idleActive = uncastable_color
     elseif (not Known_Effects.getKnowsAllSpellEffects(knownEffects, spell)) then
@@ -437,24 +457,19 @@ local function spellmerchant_update(e)
     upd_names[i]:registerBefore(tes3.uiEvent.mouseClick,
         function(_)
           local spell = upd_names[i]:getPropertyObject("MenuServiceSpells_Spell")
-          local spell_id = spell.id
-          local gold_cost = 0
-          if tes3.player.data.motte_spell_storage[spell_id] then
-            if custom_price_spells[spell_id] then
-              gold_cost = custom_price_spells[spell_id].cost * disp_factor
-            else
-              gold_cost = tes3.player.data.motte_spell_storage[spell_id].cost * config.economy_spellmerchant_mult * disp_factor
-            end
-          else
-            log:error(string.format("Spell %s, which you attempt to purchase, had not been found in the storage. This should not happen.", spell.id))
+          -- The price shown in the list is the price charged.
+          local gold_cost = gold_costs_by_id[spell.id]
+          if not gold_cost then
+            log:error("Spell %s, which you attempt to purchase, has no price. This should not happen.", spell.id)
+            return false -- without a price the spell is not sold
           end
-          if gold_amount < math.floor(gold_cost) then
+          if tes3.getPlayerGold() < gold_cost then
             tes3.messageBox("You don't have enough gold to purchase this spell.")
             return false -- this will prevent the regular mouseclick event from being run
           else
-            tes3.removeItem({reference = tes3.player, item = "gold_001", count = math.floor(gold_cost)})
-            tes3.addItem({reference = service_actor, item = "gold_001", count = math.floor(gold_cost)})
-            service_actor.barterGold = service_actor.barterGold + math.floor(gold_cost)
+            tes3.removeItem({reference = tes3.player, item = "gold_001", count = gold_cost})
+            tes3.addItem({reference = service_actor, item = "gold_001", count = gold_cost})
+            service_actor.barterGold = service_actor.barterGold + gold_cost
           end
         end
       )
@@ -709,7 +724,8 @@ function M.register()
   event.register("uiActivated", hud_update,           { filter = "MenuMulti" })
   event.register("uiActivated", spellmaking_block,    { filter = "MenuSpellmaking" })
   event.register("uiActivated", spellmerchant_update, { filter = "MenuServiceSpells" })
-  event.register("spellCreated", spellmaking_payment)
+  -- Spells created by scripts fire this event too. Only the spellmaking menu charges gold.
+  event.register("spellCreated", spellmaking_payment, { filter = tes3.spellSource.service })
   event.register(tes3.event.calcSpellmakingSpellPointCost, spellmaker_update)
 end
 

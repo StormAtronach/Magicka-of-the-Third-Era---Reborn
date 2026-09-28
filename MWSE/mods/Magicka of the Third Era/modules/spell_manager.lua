@@ -545,7 +545,7 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 	spell_cost = (total_strength ^ weighed_mag_pow) * weighed_coef * (weighed_duration ^ weighed_duration_pow) *
 	             (weighed_radius ^ weighed_area_pow) + weighed_const_offset
 
-	if config.log_level == "TRACE" then
+	if log.level >= mwse.logLevel.trace then
 		for i = 1, #non_modifier_effect_array do
 			log:trace(string.format(
 			          "Effect no %d. Strength: %d, Mag pow: %.2f, Coef: %.2f, Duration: %d, Duration pow: %.2f, Radius: %d, Area pow: %.2f, Const offset: %d",

@@ -79,17 +79,18 @@ local function spell_cost_manipulation(e)
   local caster = e.caster.object.mobile
   local is_player = caster == tes3.mobilePlayer
 
-  local spell_cost = 0
   local storage_result = SM.get_or_calculate(e.spell, premade_spells, false, caster)
-  if storage_result then
-    spell_cost = storage_result.cost
+  if not storage_result then
+    -- MOTTE has no cost for this spell. The magic menu shows the vanilla cost for it, so charge that.
+    log:debug("Spell %s has no calculated cost. Keeping the vanilla cost of %d.", e.spell.id, e.cost)
+    return
   end
-  spell_cost = spell_cost * Formulas.cost_multiplier(caster, e.caster.object.objectType == tes3.objectType.npc, is_player)
+  local spell_cost = storage_result.cost * Formulas.cost_multiplier(caster, e.caster.object.objectType == tes3.objectType.npc, is_player)
 
   -- We need to help dumb NPC AI to handle new costs. I think they fail to cast at low magicka: they cast the spell thinking it costs the old cost (cheaper). They repeat this process, constantly failing at this stage.
   -- The alternative is to rewrite the entire AI so deal with it
-  if not is_player and caster.magicka.current < spell_cost then
-    log:info("NPC casting this spell has magicka of %.2f. However, spell costs %.2f. Spell discounted to magicka - 0.5 to help the AI handle this.", caster.magicka.current, spell_cost)
+  if not is_player and config.npc_assist and caster.magicka.current < spell_cost then
+    log:debug("NPC casting this spell has magicka of %.2f. However, spell costs %.2f. Spell discounted to magicka - 0.5 to help the AI handle this.", caster.magicka.current, spell_cost)
     spell_cost = math.max(caster.magicka.current - 0.5, 0)
     -- This should allow this spell to be cast one last time before NPC will have almost no magicka and switch to something else. Seems to work after testing
   end

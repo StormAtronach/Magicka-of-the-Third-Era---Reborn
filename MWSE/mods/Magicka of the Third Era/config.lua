@@ -11,7 +11,7 @@ local default_config = {
   override_costs_alwaystosucceed = true,
   override_chances_alwaystosucceed = false,
   fatigue_penalty_mult = 50,
-  log_level = "INFO",
+  log_level = mwse.logLevel.info,
   chance_formula = 3,
   willpower_softcap = 30,
   experience_gain = true,
@@ -49,7 +49,16 @@ local default_config = {
   sa_chance_step = 5,
 }
 
-local config    = mwse.loadConfig(config_name, default_config)
-config.confPath = config_name
-config.default  = default_config
-return config
+local config = mwse.loadConfig(config_name, default_config)
+
+-- Older versions saved the level as a string. The MCM dropdown and the logger use numbers.
+local saved_level = config.log_level ---@type any
+if type(saved_level) == "string" then
+  config.log_level = mwse.logLevel[saved_level:lower()] or default_config.log_level
+end
+
+-- confPath and default are read through the metatable, so they stay out of the saved JSON.
+-- Older versions saved them as regular keys.
+config.confPath = nil
+config.default  = nil
+return setmetatable(config, { __index = { confPath = config_name, default = default_config } })

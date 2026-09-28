@@ -60,6 +60,14 @@ local function load_storage(e)
       tes3.player.data.motte_version = version
     end
   end
+  -- Stored costs depend on this setting, and the MCM can change it while another save is loaded.
+  if tes3.player.data.motte_override_costs ~= config.override_costs_alwaystosucceed then
+    if next(tes3.player.data.motte_spell_storage) then
+      log:info("Override Always-to-Succeed Costs differs from the value the storage was built with. Resetting the storage.")
+      tes3.player.data.motte_spell_storage = {}
+    end
+    tes3.player.data.motte_override_costs = config.override_costs_alwaystosucceed
+  end
 end
 
 -- ME Stuff

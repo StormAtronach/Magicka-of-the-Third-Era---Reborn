@@ -1,5 +1,5 @@
 -- mcm.lua
--- Loaded via dofile from main.lua's modConfigReady handler.
+-- Loaded via require from main.lua's modConfigReady handler.
 
 local config = require("Magicka of the Third Era.config")
 
@@ -74,8 +74,7 @@ local category_ui_spell_merchant = ui_page:createCategory("Spell Merchants")
 -- Main --
 
 main_settings:createLogLevelOptions({
-	configKey      = "log_level",
-	defaultSetting = "INFO",
+	configKey = "log_level",
 })
 
 main_settings:createOnOffButton{
@@ -235,7 +234,7 @@ hybrid_parameters:createSlider{
       For Hybrid only: spell chance increment per step within the shoulder range.
     ]],
 	configKey = "sa_chance_step",
-	min = 0, max = 20, step = 1, jump = 5,
+	min = 1, max = 20, step = 1, jump = 5,
 }
 
 -- Spell Costs --
@@ -244,8 +243,17 @@ category_cost_general:createOnOffButton{
 	label = "Override Always-to-Succeed Costs",
 	description = [[
       By default the mod recalculates costs for all spells with valid effects, including always-to-succeed ones. Disable if you have a mod that adds expensive spells with this tag.
+
+      Changing this resets the spell storage, so all spells are recalculated.
     ]],
 	configKey = "override_costs_alwaystosucceed",
+	-- Stored costs depend on this setting.
+	callback = function()
+		if tes3.player ~= nil then
+			tes3.player.data.motte_spell_storage = {}
+			tes3.player.data.motte_override_costs = config.override_costs_alwaystosucceed
+		end
+	end,
 }
 
 category_cost_general:createSlider{

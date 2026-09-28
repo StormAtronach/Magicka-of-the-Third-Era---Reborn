@@ -30,45 +30,45 @@ local modifier_effect_ids = { 3401 }
 -- Tables for offensive values of skills/attributes for effects
 local att_table_offense = { [0] = 1, [1] = 0.4, [2] = 0.75, [3] = 0.65, [4] = 0.75, [5] = 0.9, [6] = 0.35, [7] = 0.35 }
 local skill_table_offense = {
-	[0] = 1,
-	[1] = 0.4,
-	[2] = 0.7,
-	[3] = 0.7,
-	[4] = 1,
-	[5] = 1,
-	[6] = 1,
-	[7] = 1,
-	[8] = 0.8,
-	[9] = 0.4,
-	[10] = 1,
-	[11] = 0.6,
-	[12] = 0.6,
-	[13] = 0.6,
-	[14] = 1,
-	[15] = 1,
-	[16] = 0.4,
-	[17] = 0.7,
-	[18] = 0.4,
-	[19] = 0.5,
-	[20] = 0.4,
-	[21] = 0.7,
-	[22] = 1,
-	[23] = 1,
-	[24] = 0.4,
-	[25] = 0.4,
-	[26] = 1,
+  [0] = 1,
+  [1] = 0.4,
+  [2] = 0.7,
+  [3] = 0.7,
+  [4] = 1,
+  [5] = 1,
+  [6] = 1,
+  [7] = 1,
+  [8] = 0.8,
+  [9] = 0.4,
+  [10] = 1,
+  [11] = 0.6,
+  [12] = 0.6,
+  [13] = 0.6,
+  [14] = 1,
+  [15] = 1,
+  [16] = 0.4,
+  [17] = 0.7,
+  [18] = 0.4,
+  [19] = 0.5,
+  [20] = 0.4,
+  [21] = 0.7,
+  [22] = 1,
+  [23] = 1,
+  [24] = 0.4,
+  [25] = 0.4,
+  [26] = 1,
 }
 
 -- Fallback parameters for effects not in the spell table (e.g. from mods).
 -- Uses the +1 packed index: school + 1 = index.
 -- [1]=Alteration, [2]=Conjuration, [3]=Destruction, [4]=Illusion, [5]=Mysticism, [6]=Restoration.
 local school_defaults = {
-	[1] = { coef = 0.40, mag_pow = 0.70, dur_pow = -0.25, area_pow = 0.10 }, -- Alteration: utility
-	[2] = { coef = 0.50, mag_pow = 0.75, dur_pow = -0.20, area_pow = 0.10 }, -- Conjuration: summoning
-	[3] = { coef = 0.60, mag_pow = 0.71, dur_pow = -0.20, area_pow = 0.10 }, -- Destruction: damage
-	[4] = { coef = 0.35, mag_pow = 0.70, dur_pow = -0.25, area_pow = 0.10 }, -- Illusion: crowd control
-	[5] = { coef = 0.45, mag_pow = 0.72, dur_pow = -0.20, area_pow = 0.10 }, -- Mysticism: utility/hybrid
-	[6] = { coef = 0.40, mag_pow = 0.70, dur_pow = -0.30, area_pow = 0.10 }, -- Restoration: healing/buffs
+  [1] = { coef = 0.40, mag_pow = 0.70, dur_pow = -0.25, area_pow = 0.10 }, -- Alteration: utility
+  [2] = { coef = 0.50, mag_pow = 0.75, dur_pow = -0.20, area_pow = 0.10 }, -- Conjuration: summoning
+  [3] = { coef = 0.60, mag_pow = 0.71, dur_pow = -0.20, area_pow = 0.10 }, -- Destruction: damage
+  [4] = { coef = 0.35, mag_pow = 0.70, dur_pow = -0.25, area_pow = 0.10 }, -- Illusion: crowd control
+  [5] = { coef = 0.45, mag_pow = 0.72, dur_pow = -0.20, area_pow = 0.10 }, -- Mysticism: utility/hybrid
+  [6] = { coef = 0.40, mag_pow = 0.70, dur_pow = -0.30, area_pow = 0.10 }, -- Restoration: healing/buffs
 }
 
 -- Effects whose coefficient depends on the attribute or the skill they hit.
@@ -77,15 +77,15 @@ local skill_effects = { [21] = true, [26] = true } -- Drain Skill, Damage Skill
 
 -- What a parameter is when the effect's row in the spell table leaves it out.
 local param_defaults = {
-	mag_pow = 1,
-	coef = 1,
-	dur_pow = 0,
-	dur_min = 1,
-	area_pow = 0.1,
-	const_offset = 0,
-	mag_offset = 0,
-	dur_offset = 0,
-	strength_min = 0,
+  mag_pow = 1,
+  coef = 1,
+  dur_pow = 0,
+  dur_min = 1,
+  area_pow = 0.1,
+  const_offset = 0,
+  mag_offset = 0,
+  dur_offset = 0,
+  strength_min = 0,
 }
 -- The multi-effect formula has its own default for area_pow, as in the original mod.
 local multi_effect_area_pow = 0.2
@@ -95,302 +95,302 @@ local multi_effect_area_pow = 0.2
 --- @param effect table An effect with id, min, max, duration, radius, rangeType, attribute and skill.
 --- @param area_pow_default number? Used in place of the default for area_pow.
 local function resolve_effect_params(effect, area_pow_default)
-	local row = spell_table[effect.id]
-	if not row then
-		local school = effect.object and effect.object.school or 0
-		row = school_defaults[school + 1] or school_defaults[1]
-		log:warn("Effect ID %d (%s) not in spell table, using school %d defaults.",
-			effect.id, effect.object and effect.object.name or "unknown", school)
-	end
+  local row = spell_table[effect.id]
+  if not row then
+    local school = effect.object and effect.object.school or 0
+    row = school_defaults[school + 1] or school_defaults[1]
+    log:warn("Effect ID %d (%s) not in spell table, using school %d defaults.",
+      effect.id, effect.object and effect.object.name or "unknown", school)
+  end
 
-	local p = { row = row }
-	for name, default in pairs(param_defaults) do
-		p[name] = row[name] or default
-	end
-	if area_pow_default and not row.area_pow then
-		p.area_pow = area_pow_default
-	end
+  local p = { row = row }
+  for name, default in pairs(param_defaults) do
+    p[name] = row[name] or default
+  end
+  if area_pow_default and not row.area_pow then
+    p.area_pow = area_pow_default
+  end
 
-	-- range mods
-	if effect.rangeType == 1 then
-		p.coef = p.coef * (row.range1_coef_mod or 1)
-		p.dur_pow = row.range1_dur or p.dur_pow
-	elseif effect.rangeType == 2 then
-		p.coef = p.coef * (row.range2_coef_mod or 1)
-		p.dur_pow = row.range2_dur or p.dur_pow
-	end
-	if attribute_effects[effect.id] then
-		p.coef = p.coef * att_table_offense[effect.attribute]
-	end
-	if skill_effects[effect.id] then
-		p.coef = p.coef * skill_table_offense[effect.skill]
-	end
+  -- range mods
+  if effect.rangeType == 1 then
+    p.coef = p.coef * (row.range1_coef_mod or 1)
+    p.dur_pow = row.range1_dur or p.dur_pow
+  elseif effect.rangeType == 2 then
+    p.coef = p.coef * (row.range2_coef_mod or 1)
+    p.dur_pow = row.range2_dur or p.dur_pow
+  end
+  if attribute_effects[effect.id] then
+    p.coef = p.coef * att_table_offense[effect.attribute]
+  end
+  if skill_effects[effect.id] then
+    p.coef = p.coef * skill_table_offense[effect.skill]
+  end
 
-	local magnitude
-	if row.ignore_magmin then
-		magnitude = 2 * (math.max(effect.max, 1) + p.mag_offset)
-	else
-		magnitude = math.max(effect.min, 1) + math.max(effect.max, 1) + 2 * p.mag_offset
-	end
-	p.duration = math.max(effect.duration + p.dur_offset, p.dur_min)
-	p.strength = math.max(magnitude, p.strength_min) * p.duration
-	return p
+  local magnitude
+  if row.ignore_magmin then
+    magnitude = 2 * (math.max(effect.max, 1) + p.mag_offset)
+  else
+    magnitude = math.max(effect.min, 1) + math.max(effect.max, 1) + 2 * p.mag_offset
+  end
+  p.duration = math.max(effect.duration + p.dur_offset, p.dur_min)
+  p.strength = math.max(magnitude, p.strength_min) * p.duration
+  return p
 end
 
 -- How a synergy rule compares a field of an effect with the rule's value.
 local comparators = {
-	["equal"] = function(a, b) return a == b end,
-	["not equal"] = function(a, b) return a ~= b end,
-	["greater"] = function(a, b) return a > b end,
-	["greater or equal"] = function(a, b) return a >= b end,
-	["less"] = function(a, b) return a < b end,
-	["less or equal"] = function(a, b) return a <= b end,
+  ["equal"] = function(a, b) return a == b end,
+  ["not equal"] = function(a, b) return a ~= b end,
+  ["greater"] = function(a, b) return a > b end,
+  ["greater or equal"] = function(a, b) return a >= b end,
+  ["less"] = function(a, b) return a < b end,
+  ["less or equal"] = function(a, b) return a <= b end,
 }
 
 --- Whether an effect meets every condition of a synergy rule.
 local function effect_fits_rule(effect, rule)
-	for _, condition in ipairs(rule) do
-		local compare = comparators[condition.sign]
-		-- A sign that is not in the table puts no condition on the effect.
-		if compare and not compare(effect[condition.field], condition.value) then
-			return false
-		end
-	end
-	return true
+  for _, condition in ipairs(rule) do
+    local compare = comparators[condition.sign]
+    -- A sign that is not in the table puts no condition on the effect.
+    if compare and not compare(effect[condition.field], condition.value) then
+      return false
+    end
+  end
+  return true
 end
 
 local function detect_synergies(effect_db, effect_costs, synergy_array)
-	-- MODIFIERS: unsure if I have to do anything here. maybe skip modifier effects? but if they're not a part of a synergy then it's fine?
-	local synergy_bonuses = { synergy_ids = {}, cost_discount = 0 }
-	local total_effect_cost = 0
-	for i = 1, #effect_costs do
-		total_effect_cost = total_effect_cost + effect_costs[i]
-	end
+  -- MODIFIERS: unsure if I have to do anything here. maybe skip modifier effects? but if they're not a part of a synergy then it's fine?
+  local synergy_bonuses = { synergy_ids = {}, cost_discount = 0 }
+  local total_effect_cost = 0
+  for i = 1, #effect_costs do
+    total_effect_cost = total_effect_cost + effect_costs[i]
+  end
 
-	-- go through every synergy to see if it fits. It's not optimized atm, but seems to work well. Maybe lua is effective enough.
-	for i, synergy in ipairs(synergy_array) do
-		-- For each rule, the last effect that fits it. A synergy works when every rule has one.
-		local fitting_effects = {}
-		local synergy_works = true
-		for j, rule in ipairs(synergy.rules) do
-			for v, effect in ipairs(effect_db) do
-				if effect_fits_rule(effect, rule) then
-					fitting_effects[j] = v
-				end
-			end
-			if not fitting_effects[j] then
-				synergy_works = false
-				break
-			end
-		end
+  -- go through every synergy to see if it fits. It's not optimized atm, but seems to work well. Maybe lua is effective enough.
+  for i, synergy in ipairs(synergy_array) do
+    -- For each rule, the last effect that fits it. A synergy works when every rule has one.
+    local fitting_effects = {}
+    local synergy_works = true
+    for j, rule in ipairs(synergy.rules) do
+      for v, effect in ipairs(effect_db) do
+        if effect_fits_rule(effect, rule) then
+          fitting_effects[j] = v
+        end
+      end
+      if not fitting_effects[j] then
+        synergy_works = false
+        break
+      end
+    end
 
-		if synergy_works then
-			log:trace("Synergy %s works for this spell!", synergy.name)
-			table.insert(synergy_bonuses.synergy_ids, i)
-			-- weight is equal to the lowest relevant / total cost
-			-- A weight of 0 counts as not set yet, so an effect that costs 0 only sets the weight when it comes last.
-			local effect_weight = 0
-			for _, v in ipairs(fitting_effects) do
-				if effect_weight == 0 then
-					effect_weight = effect_costs[v]
-				else
-					effect_weight = math.min(effect_weight, effect_costs[v])
-				end
-			end
-			effect_weight = effect_weight / total_effect_cost
-			log:trace("Weight for this synergy: %.2f", effect_weight)
-			-- for now only cost discount is supported
-			if synergy.benefit.type == "cost_discount" then
-				synergy_bonuses.cost_discount = synergy_bonuses.cost_discount + effect_weight * synergy.benefit.value
-			end
-		end
-	end
+    if synergy_works then
+      log:trace("Synergy %s works for this spell!", synergy.name)
+      table.insert(synergy_bonuses.synergy_ids, i)
+      -- weight is equal to the lowest relevant / total cost
+      -- A weight of 0 counts as not set yet, so an effect that costs 0 only sets the weight when it comes last.
+      local effect_weight = 0
+      for _, v in ipairs(fitting_effects) do
+        if effect_weight == 0 then
+          effect_weight = effect_costs[v]
+        else
+          effect_weight = math.min(effect_weight, effect_costs[v])
+        end
+      end
+      effect_weight = effect_weight / total_effect_cost
+      log:trace("Weight for this synergy: %.2f", effect_weight)
+      -- for now only cost discount is supported
+      if synergy.benefit.type == "cost_discount" then
+        synergy_bonuses.cost_discount = synergy_bonuses.cost_discount + effect_weight * synergy.benefit.value
+      end
+    end
+  end
 
-	return synergy_bonuses
+  return synergy_bonuses
 end
 
 local function is_modifier_effect(effect)
-	for _, effect_id in ipairs(modifier_effect_ids) do
-		if effect.id == effect_id then
-			return true
-		end
-	end
-	return false
+  for _, effect_id in ipairs(modifier_effect_ids) do
+    if effect.id == effect_id then
+      return true
+    end
+  end
+  return false
 end
 
 local function detect_all_modifier_effects(effect_array)
-	local modifiers = {}
-	local seen = {}
-	for _, effect in ipairs(effect_array) do
-		if is_modifier_effect(effect) and not seen[effect.id] then
-			log:trace("Found a modifier effect: %s", effect.id)
-			table.insert(modifiers, effect.id)
-			seen[effect.id] = true
-		end
-	end
-	return modifiers
+  local modifiers = {}
+  local seen = {}
+  for _, effect in ipairs(effect_array) do
+    if is_modifier_effect(effect) and not seen[effect.id] then
+      log:trace("Found a modifier effect: %s", effect.id)
+      table.insert(modifiers, effect.id)
+      seen[effect.id] = true
+    end
+  end
+  return modifiers
 end
 
 local function weighed_average(var_array, weight_array, method)
-	local avg = 0
-	local sum = 0
-	for _, weight in ipairs(weight_array) do
-		sum = sum + weight
-	end
-	if method == "arithmetic" then
-		for i, x in ipairs(var_array) do
-			avg = avg + x * weight_array[i]
-		end
-		avg = avg / sum
-	elseif method == "geometric" then
-		for i, x in ipairs(var_array) do
-			avg = avg + math.log(x) * weight_array[i]
-		end
-		avg = math.exp(avg / sum)
-	end
-	return avg
+  local avg = 0
+  local sum = 0
+  for _, weight in ipairs(weight_array) do
+    sum = sum + weight
+  end
+  if method == "arithmetic" then
+    for i, x in ipairs(var_array) do
+      avg = avg + x * weight_array[i]
+    end
+    avg = avg / sum
+  elseif method == "geometric" then
+    for i, x in ipairs(var_array) do
+      avg = avg + math.log(x) * weight_array[i]
+    end
+    avg = math.exp(avg / sum)
+  end
+  return avg
 end
 
 -- Effect cost calculation, grabs all the info from the spell table and uses a generalized alg in most cases.
 this.effect_cost_advanced = function(effect)
-	-- MODIFIERS: may need to add a check for modifier effect
-	local p = resolve_effect_params(effect)
-	local effect_cost
-	-- Check for overrides
-	if p.row.range0_const_cost and effect.rangeType == 0 then
-		effect_cost = p.row.range0_const_cost
-	elseif p.row.const_cost then
-		effect_cost = p.row.const_cost
-	else
-		effect_cost = (p.strength ^ p.mag_pow) * p.coef *
-		              (p.duration ^ p.dur_pow) *
-		              ((effect.radius + 1) ^ p.area_pow) + p.const_offset
-	end
-	log:trace("Effect ID %d calculated successfully. Costs: %.2f.", effect.id, effect_cost)
-	return effect_cost
+  -- MODIFIERS: may need to add a check for modifier effect
+  local p = resolve_effect_params(effect)
+  local effect_cost
+  -- Check for overrides
+  if p.row.range0_const_cost and effect.rangeType == 0 then
+    effect_cost = p.row.range0_const_cost
+  elseif p.row.const_cost then
+    effect_cost = p.row.const_cost
+  else
+    effect_cost = (p.strength ^ p.mag_pow) * p.coef *
+                  (p.duration ^ p.dur_pow) *
+                  ((effect.radius + 1) ^ p.area_pow) + p.const_offset
+  end
+  log:trace("Effect ID %d calculated successfully. Costs: %.2f.", effect.id, effect_cost)
+  return effect_cost
 end
 
 -- High effort formula for multi effect spells to make them cost correctly with non-linear scaling
 -- Spell with 2 effects "frost damage 30" and "frost damage 20" will cost exactly the same as the spell with 1 effect "frost damage 50", although these effects, when added up, cost more.
 this.spell_cost_advanced = function(effect_array, cost_array)
-	local strength_array = {}
-	local mag_pow_array = {}
-	local coef_array = {}
-	local duration_array = {}
-	local duration_pow_array = {}
-	local radius_array = {}
-	local area_pow_array = {}
-	local const_offset_array = {}
-	local has_const_offset = false
+  local strength_array = {}
+  local mag_pow_array = {}
+  local coef_array = {}
+  local duration_array = {}
+  local duration_pow_array = {}
+  local radius_array = {}
+  local area_pow_array = {}
+  local const_offset_array = {}
+  local has_const_offset = false
 
-	-- Synergies!
-	local synergy_bonuses = detect_synergies(effect_array, cost_array, synergy_table)
+  -- Synergies!
+  local synergy_bonuses = detect_synergies(effect_array, cost_array, synergy_table)
 
-	-- remove modifiers from further procession
-	local non_modifier_effect_array = {}
-	local non_modifier_cost_array = {}
-	for i, effect in ipairs(effect_array) do
-		if is_modifier_effect(effect) then
-			log:trace("Found a modifier effect: %s", effect.id)
-		else
-			table.insert(non_modifier_effect_array, effect)
-			table.insert(non_modifier_cost_array, cost_array[i])
-		end
-	end
-	-- Nothing to merge. The averages below would divide by zero.
-	if #non_modifier_effect_array == 0 then
-		return { cost = 0, synergies = synergy_bonuses }
-	end
+  -- remove modifiers from further procession
+  local non_modifier_effect_array = {}
+  local non_modifier_cost_array = {}
+  for i, effect in ipairs(effect_array) do
+    if is_modifier_effect(effect) then
+      log:trace("Found a modifier effect: %s", effect.id)
+    else
+      table.insert(non_modifier_effect_array, effect)
+      table.insert(non_modifier_cost_array, cost_array[i])
+    end
+  end
+  -- Nothing to merge. The averages below would divide by zero.
+  if #non_modifier_effect_array == 0 then
+    return { cost = 0, synergies = synergy_bonuses }
+  end
 
-	-- we process non-modifiers ONLY!
-	for i, effect in ipairs(non_modifier_effect_array) do
-		local p = resolve_effect_params(effect, multi_effect_area_pow)
-		-- Skip if it has overrides (abusable / non-mergeable skill). Returns 0 and therefore we use sum of effect costs for the price instead.
-		-- for const_cost, have a 'modifier effect check!!!'
-		if (p.row.range0_const_cost and effect.rangeType == 0) or p.row.const_cost then
-			log:trace(
-			"This spell is not valid for the advanced formula (constant cost). Aborting calculations, using sum of effects instead.")
-			return { cost = 0, synergies = synergy_bonuses }
-		end
-		-- Add stuff to separate arrays to use them for more readable weighed average calculation.
-		if p.const_offset > 0 then
-			has_const_offset = true
-		end
-		strength_array[i] = p.strength
-		mag_pow_array[i] = p.mag_pow
-		coef_array[i] = p.coef
-		duration_array[i] = p.duration
-		duration_pow_array[i] = p.dur_pow
-		radius_array[i] = effect.radius + 1
-		area_pow_array[i] = p.area_pow
-		const_offset_array[i] = p.const_offset
-	end
+  -- we process non-modifiers ONLY!
+  for i, effect in ipairs(non_modifier_effect_array) do
+    local p = resolve_effect_params(effect, multi_effect_area_pow)
+    -- Skip if it has overrides (abusable / non-mergeable skill). Returns 0 and therefore we use sum of effect costs for the price instead.
+    -- for const_cost, have a 'modifier effect check!!!'
+    if (p.row.range0_const_cost and effect.rangeType == 0) or p.row.const_cost then
+      log:trace(
+      "This spell is not valid for the advanced formula (constant cost). Aborting calculations, using sum of effects instead.")
+      return { cost = 0, synergies = synergy_bonuses }
+    end
+    -- Add stuff to separate arrays to use them for more readable weighed average calculation.
+    if p.const_offset > 0 then
+      has_const_offset = true
+    end
+    strength_array[i] = p.strength
+    mag_pow_array[i] = p.mag_pow
+    coef_array[i] = p.coef
+    duration_array[i] = p.duration
+    duration_pow_array[i] = p.dur_pow
+    radius_array[i] = effect.radius + 1
+    area_pow_array[i] = p.area_pow
+    const_offset_array[i] = p.const_offset
+  end
 
-	-- weighing everything
-	local weighed_mag_pow = weighed_average(mag_pow_array, non_modifier_cost_array, "geometric")
-	local weighed_coef = weighed_average(coef_array, non_modifier_cost_array, "geometric")
-	local weighed_duration = weighed_average(duration_array, non_modifier_cost_array, "geometric")
-	local weighed_duration_pow = weighed_average(duration_pow_array, non_modifier_cost_array, "arithmetic")
-	local weighed_radius = weighed_average(radius_array, non_modifier_cost_array, "geometric")
-	local weighed_area_pow = weighed_average(area_pow_array, non_modifier_cost_array, "arithmetic")
-	-- This might be still non-ideal, need to think.
-	-- Const offsets, effectively, do not stack additively, which is generally good (otherwise it would make spells with several const offsets unusable), but might lead to some weird cases.
-	local weighed_const_offset = 0
-	if has_const_offset then
-		weighed_const_offset = weighed_average(const_offset_array, non_modifier_cost_array, "arithmetic")
-	end
+  -- weighing everything
+  local weighed_mag_pow = weighed_average(mag_pow_array, non_modifier_cost_array, "geometric")
+  local weighed_coef = weighed_average(coef_array, non_modifier_cost_array, "geometric")
+  local weighed_duration = weighed_average(duration_array, non_modifier_cost_array, "geometric")
+  local weighed_duration_pow = weighed_average(duration_pow_array, non_modifier_cost_array, "arithmetic")
+  local weighed_radius = weighed_average(radius_array, non_modifier_cost_array, "geometric")
+  local weighed_area_pow = weighed_average(area_pow_array, non_modifier_cost_array, "arithmetic")
+  -- This might be still non-ideal, need to think.
+  -- Const offsets, effectively, do not stack additively, which is generally good (otherwise it would make spells with several const offsets unusable), but might lead to some weird cases.
+  local weighed_const_offset = 0
+  if has_const_offset then
+    weighed_const_offset = weighed_average(const_offset_array, non_modifier_cost_array, "arithmetic")
+  end
 
-	local total_strength = 0
-	for _, strength in ipairs(strength_array) do
-		total_strength = total_strength + strength
-	end
+  local total_strength = 0
+  for _, strength in ipairs(strength_array) do
+    total_strength = total_strength + strength
+  end
 
-	local sum_of_costs = 0
-	for _, cost in ipairs(non_modifier_cost_array) do
-		sum_of_costs = sum_of_costs + cost
-	end
+  local sum_of_costs = 0
+  for _, cost in ipairs(non_modifier_cost_array) do
+    sum_of_costs = sum_of_costs + cost
+  end
 
-	-- Here it comes
-	local spell_cost = (total_strength ^ weighed_mag_pow) * weighed_coef * (weighed_duration ^ weighed_duration_pow) *
-	                   (weighed_radius ^ weighed_area_pow) + weighed_const_offset
+  -- Here it comes
+  local spell_cost = (total_strength ^ weighed_mag_pow) * weighed_coef * (weighed_duration ^ weighed_duration_pow) *
+                     (weighed_radius ^ weighed_area_pow) + weighed_const_offset
 
-	if log.level >= mwse.logLevel.trace then
-		for i = 1, #non_modifier_effect_array do
-			log:trace(
-			"Effect no %d. Strength: %d, Mag pow: %.2f, Coef: %.2f, Duration: %d, Duration pow: %.2f, Radius: %d, Area pow: %.2f, Const offset: %d",
-			i, strength_array[i], mag_pow_array[i], coef_array[i], duration_array[i], duration_pow_array[i],
-			radius_array[i], area_pow_array[i], const_offset_array[i])
-		end
-		log:trace(
-		"Weighed mag_pow: %.3f\nweighed coef: %.3f\nweighed duration: %.3f\nweighed duration pow: %.3f\nweighed radius: %.3f\nweighed area pow: %.3f\nweighed const offset: %.3f",
-		weighed_mag_pow, weighed_coef, weighed_duration, weighed_duration_pow, weighed_radius, weighed_area_pow,
-		weighed_const_offset)
-		log:trace("Old cost (sum of effect costs): %.2f\nNew cost: %.2f.\nLowest one will be used.", sum_of_costs, spell_cost)
-	end
+  if log.level >= mwse.logLevel.trace then
+    for i = 1, #non_modifier_effect_array do
+      log:trace(
+      "Effect no %d. Strength: %d, Mag pow: %.2f, Coef: %.2f, Duration: %d, Duration pow: %.2f, Radius: %d, Area pow: %.2f, Const offset: %d",
+      i, strength_array[i], mag_pow_array[i], coef_array[i], duration_array[i], duration_pow_array[i],
+      radius_array[i], area_pow_array[i], const_offset_array[i])
+    end
+    log:trace(
+    "Weighed mag_pow: %.3f\nweighed coef: %.3f\nweighed duration: %.3f\nweighed duration pow: %.3f\nweighed radius: %.3f\nweighed area pow: %.3f\nweighed const offset: %.3f",
+    weighed_mag_pow, weighed_coef, weighed_duration, weighed_duration_pow, weighed_radius, weighed_area_pow,
+    weighed_const_offset)
+    log:trace("Old cost (sum of effect costs): %.2f\nNew cost: %.2f.\nLowest one will be used.", sum_of_costs, spell_cost)
+  end
 
-	if sum_of_costs < spell_cost and #non_modifier_effect_array > 1 then
-		log:trace(
-		"Found unsynergetic effects in the spell (sum of effect costs is lower than calculated cost). Sum of effects cost will be used instead. Above are the spell details.")
-	end
+  if sum_of_costs < spell_cost and #non_modifier_effect_array > 1 then
+    log:trace(
+    "Found unsynergetic effects in the spell (sum of effect costs is lower than calculated cost). Sum of effects cost will be used instead. Above are the spell details.")
+  end
 
-	-- In some cases it might be worse than sum of effect costs. For these cases, we use sum of costs instead. If this function returns 0, same logic will apply (but synergies won't be applied so it's bad).
-	spell_cost = math.min(spell_cost, sum_of_costs)
+  -- In some cases it might be worse than sum of effect costs. For these cases, we use sum of costs instead. If this function returns 0, same logic will apply (but synergies won't be applied so it's bad).
+  spell_cost = math.min(spell_cost, sum_of_costs)
 
-	-- Apply modifiers.
-	local modifier_list = detect_all_modifier_effects(effect_array)
-	if #modifier_list > 0 then
-		log:trace("Modifiers have been found. Processing the modifier effects.")
-		local modifier_changes = Modifier_Logic.process_modifiers(effect_array, cost_array, modifier_list)
-		spell_cost = spell_cost * modifier_changes.difficulty
-	end
+  -- Apply modifiers.
+  local modifier_list = detect_all_modifier_effects(effect_array)
+  if #modifier_list > 0 then
+    log:trace("Modifiers have been found. Processing the modifier effects.")
+    local modifier_changes = Modifier_Logic.process_modifiers(effect_array, cost_array, modifier_list)
+    spell_cost = spell_cost * modifier_changes.difficulty
+  end
 
-	-- Apply synergies. Treats the 'better' cost. Still won't apply synergies to spells with abusable effects.
-	if synergy_bonuses.cost_discount > 0 then
-		spell_cost = spell_cost * (1 - synergy_bonuses.cost_discount)
-		log:trace("Synergies found! Discount is %.2f * spell cost!", synergy_bonuses.cost_discount)
-	end
+  -- Apply synergies. Treats the 'better' cost. Still won't apply synergies to spells with abusable effects.
+  if synergy_bonuses.cost_discount > 0 then
+    spell_cost = spell_cost * (1 - synergy_bonuses.cost_discount)
+    log:trace("Synergies found! Discount is %.2f * spell cost!", synergy_bonuses.cost_discount)
+  end
 
-	return { cost = spell_cost, synergies = synergy_bonuses }
+  return { cost = spell_cost, synergies = synergy_bonuses }
 end
 
 -- The fields of a mobile that hold the magic skills, by school.
@@ -398,90 +398,90 @@ local school_skills = { [0] = "alteration", "conjuration", "destruction", "illus
 
 --- The mobile's skill in a school. Creatures have one magic skill for all of them.
 local function skill_of(mobile, school)
-	local skill = mobile[school_skills[school]]
-	return skill and skill.current or mobile.magic.current
+  local skill = mobile[school_skills[school]]
+  return skill and skill.current or mobile.magic.current
 end
 
 --- Whether a skill table has a weight for each of the six schools. Storage from older versions can lack some.
 function this.is_complete_skill_table(skill_table)
-	if not skill_table then
-		return false
-	end
-	for i = 1, 6 do
-		if skill_table[i] == nil then
-			return false
-		end
-	end
-	return true
+  if not skill_table then
+    return false
+  end
+  for i = 1, 6 do
+    if skill_table[i] == nil then
+      return false
+    end
+  end
+  return true
 end
 
 -- Compute the player's effective skill for a spell from the stored skill_table.
 -- skill_table uses the +1 packed format: index = school + 1.
 -- [1]=Alteration, [2]=Conjuration, [3]=Destruction, [4]=Illusion, [5]=Mysticism, [6]=Restoration.
 function this.compute_skill(skill_table, mobile)
-	if not this.is_complete_skill_table(skill_table) then
-		log:error("compute_skill: the skill table lacks a school: [1]=%s [2]=%s [3]=%s [4]=%s [5]=%s [6]=%s",
-			tostring(skill_table[1]), tostring(skill_table[2]), tostring(skill_table[3]),
-			tostring(skill_table[4]), tostring(skill_table[5]), tostring(skill_table[6]))
-		return 0
-	end
-	local skill = 0
-	for i = 1, 6 do
-		skill = skill + skill_table[i] * (skill_of(mobile, i - 1) or 0)
-	end
-	return skill
+  if not this.is_complete_skill_table(skill_table) then
+    log:error("compute_skill: the skill table lacks a school: [1]=%s [2]=%s [3]=%s [4]=%s [5]=%s [6]=%s",
+      tostring(skill_table[1]), tostring(skill_table[2]), tostring(skill_table[3]),
+      tostring(skill_table[4]), tostring(skill_table[5]), tostring(skill_table[6]))
+    return 0
+  end
+  local skill = 0
+  for i = 1, 6 do
+    skill = skill + skill_table[i] * (skill_of(mobile, i - 1) or 0)
+  end
+  return skill
 end
 
 -- Normalize a working skill_table (index 0=Alteration) by total_effect_cost and
 -- return a packed table (school + 1 = index) suitable for persistent storage.
 local function pack_skill_table(working_table, total_effect_cost)
-	local packed = {}
-	for k = 0, 5 do
-		working_table[k] = working_table[k] / total_effect_cost
-		log:trace(string.format("Coeficient for skill %d: %.2f", k, working_table[k]))
-		packed[k + 1] = working_table[k]
-	end
-	return packed
+  local packed = {}
+  for k = 0, 5 do
+    working_table[k] = working_table[k] / total_effect_cost
+    log:trace(string.format("Coeficient for skill %d: %.2f", k, working_table[k]))
+    packed[k + 1] = working_table[k]
+  end
+  return packed
 end
 
 --- Prices a list of effects, for a stored spell or for one that is still being made.
 --- @param effects table[] Effects with id, min, max, duration, radius, rangeType, attribute, skill and object.
 --- @return { cost: number, skill_table: number[], discount: number }? priced Nil when the effects cost nothing. `discount` is the share the synergies found take off.
 function this.price_effects(effects)
-	local school_costs = { [0] = 0, [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0 }
-	local costs = {}
-	local total_effect_cost = 0
-	for i, effect in ipairs(effects) do
-		local effect_cost = this.effect_cost_advanced(effect)
-		costs[i] = effect_cost
-		total_effect_cost = total_effect_cost + effect_cost
-		-- An effect of a custom school counts towards Alteration.
-		local school = effect.object.school
-		if school < 0 or school > 5 then
-			school = 0
-		end
-		school_costs[school] = school_costs[school] + effect_cost
-	end
-	if total_effect_cost == 0 then
-		return nil
-	end
+  local school_costs = { [0] = 0, [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0 }
+  local costs = {}
+  local total_effect_cost = 0
+  for i, effect in ipairs(effects) do
+    local effect_cost = this.effect_cost_advanced(effect)
+    costs[i] = effect_cost
+    total_effect_cost = total_effect_cost + effect_cost
+    -- An effect of a custom school counts towards Alteration.
+    local school = effect.object.school
+    if school < 0 or school > 5 then
+      school = 0
+    end
+    school_costs[school] = school_costs[school] + effect_cost
+  end
+  if total_effect_cost == 0 then
+    return nil
+  end
 
-	-- Single vs multi-effect cost formula
-	local cost, discount = total_effect_cost, 0
-	if #effects == 1 then
-		log:trace("One-effect spell found! Using basic formula.")
-	else
-		log:trace("Multi-effect spell found! Trying advanced formula.")
-		local merged = this.spell_cost_advanced(effects, costs)
-		if merged.cost == 0 then
-			-- The sum of the effects is charged, without the discount of any synergy found.
-			log:trace("Non-legit spell for advanced formula! Going for plan B.")
-		else
-			cost = merged.cost
-			discount = merged.synergies.cost_discount
-		end
-	end
-	return { cost = cost, skill_table = pack_skill_table(school_costs, total_effect_cost), discount = discount }
+  -- Single vs multi-effect cost formula
+  local cost, discount = total_effect_cost, 0
+  if #effects == 1 then
+    log:trace("One-effect spell found! Using basic formula.")
+  else
+    log:trace("Multi-effect spell found! Trying advanced formula.")
+    local merged = this.spell_cost_advanced(effects, costs)
+    if merged.cost == 0 then
+      -- The sum of the effects is charged, without the discount of any synergy found.
+      log:trace("Non-legit spell for advanced formula! Going for plan B.")
+    else
+      cost = merged.cost
+      discount = merged.synergies.cost_discount
+    end
+  end
+  return { cost = cost, skill_table = pack_skill_table(school_costs, total_effect_cost), discount = discount }
 end
 
 -- Get spell cost and skill data from the cache, or calculate and cache it fresh.
@@ -495,103 +495,103 @@ end
 -- Returns a table { cost, skill_for_spell, skill_table } on success, or nil if the
 -- spell has zero total effect cost (i.e. an empty or fully-invalid spell).
 function this.get_or_calculate(spell, save_always_succeeds, mobile)
-	local spell_id = spell.id
+  local spell_id = spell.id
 
-	-- Cache hit: return stored values directly (evict if skill_table is corrupt)
-	if tes3.player.data.motte_spell_storage[spell_id] then
-		local spell_data = tes3.player.data.motte_spell_storage[spell_id]
-		local skill_table = spell_data.skill_table
-		if not this.is_complete_skill_table(skill_table) then
-			log:warn("Spell %s has corrupt skill_table in storage, evicting for recalculation.", spell_id)
-			tes3.player.data.motte_spell_storage[spell_id] = nil
-		else
-			local spell_cost = spell_data.cost
-			log:trace("Spell %s found in storage. Cost: %.2f.", spell_id, spell_cost)
-			local skill_for_spell = mobile and this.compute_skill(skill_table, mobile) or 0
-			return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = skill_table }
-		end
-	end
+  -- Cache hit: return stored values directly (evict if skill_table is corrupt)
+  if tes3.player.data.motte_spell_storage[spell_id] then
+    local spell_data = tes3.player.data.motte_spell_storage[spell_id]
+    local skill_table = spell_data.skill_table
+    if not this.is_complete_skill_table(skill_table) then
+      log:warn("Spell %s has corrupt skill_table in storage, evicting for recalculation.", spell_id)
+      tes3.player.data.motte_spell_storage[spell_id] = nil
+    else
+      local spell_cost = spell_data.cost
+      log:trace("Spell %s found in storage. Cost: %.2f.", spell_id, spell_cost)
+      local skill_for_spell = mobile and this.compute_skill(skill_table, mobile) or 0
+      return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = skill_table }
+    end
+  end
 
-	-- Unique spell overrides
-	local unique_spell_data = premade_spells[spell_id] or {}
-	local old_cost = spell.magickaCost
+  -- Unique spell overrides
+  local unique_spell_data = premade_spells[spell_id] or {}
+  local old_cost = spell.magickaCost
 
-	if config.override_costs_alwaystosucceed or not spell.alwaysSucceeds then
-		-- Full cost calculation path (normal spells, or always-succeed with cost override)
-		local effects = {}
-		for _, effect in ipairs(spell.effects) do
-			-- The empty slots of a spell have no object.
-			if effect.object then
-				table.insert(effects, effect)
-			end
-		end
-		local priced = this.price_effects(effects)
-		if not priced then
-			return nil
-		end
-		local spell_cost = priced.cost
-		local packed_table = priced.skill_table
+  if config.override_costs_alwaystosucceed or not spell.alwaysSucceeds then
+    -- Full cost calculation path (normal spells, or always-succeed with cost override)
+    local effects = {}
+    for _, effect in ipairs(spell.effects) do
+      -- The empty slots of a spell have no object.
+      if effect.object then
+        table.insert(effects, effect)
+      end
+    end
+    local priced = this.price_effects(effects)
+    if not priced then
+      return nil
+    end
+    local spell_cost = priced.cost
+    local packed_table = priced.skill_table
 
-		-- Apply unique spell overrides
-		if unique_spell_data.use_premade_cost then
-			spell_cost = old_cost
-			log:trace("Found unique spell rule. Spell will use old costs.")
-		end
-		if unique_spell_data.fixed_cost then
-			spell_cost = unique_spell_data.fixed_cost
-			log:trace("Found unique spell rule. Spell will use pre-written costs.")
-		end
-		if unique_spell_data.flat_mult then
-			spell_cost = spell_cost * unique_spell_data.flat_mult
-			log:trace("Found unique spell rule. Spell will have it's cost multiplied by a value.")
-		end
-		if unique_spell_data.skill_table then
-			-- premade_spells uses 0-based school indices; convert to +1 packed format
-			local st = unique_spell_data.skill_table
-			packed_table = { st[0], st[1], st[2], st[3], st[4], st[5] }
-			log:trace("Found unique spell rule. Spell will use custom skill table.")
-		end
+    -- Apply unique spell overrides
+    if unique_spell_data.use_premade_cost then
+      spell_cost = old_cost
+      log:trace("Found unique spell rule. Spell will use old costs.")
+    end
+    if unique_spell_data.fixed_cost then
+      spell_cost = unique_spell_data.fixed_cost
+      log:trace("Found unique spell rule. Spell will use pre-written costs.")
+    end
+    if unique_spell_data.flat_mult then
+      spell_cost = spell_cost * unique_spell_data.flat_mult
+      log:trace("Found unique spell rule. Spell will have it's cost multiplied by a value.")
+    end
+    if unique_spell_data.skill_table then
+      -- premade_spells uses 0-based school indices; convert to +1 packed format
+      local st = unique_spell_data.skill_table
+      packed_table = { st[0], st[1], st[2], st[3], st[4], st[5] }
+      log:trace("Found unique spell rule. Spell will use custom skill table.")
+    end
 
-		-- Cache result
-		tes3.player.data.motte_spell_storage[spell_id] = {
-			cost = spell_cost,
-			skill_table = packed_table,
-			cost_mod = 1,
-			chance_mod = 1,
-		}
+    -- Cache result
+    tes3.player.data.motte_spell_storage[spell_id] = {
+      cost = spell_cost,
+      skill_table = packed_table,
+      cost_mod = 1,
+      chance_mod = 1,
+    }
 
-		local skill_for_spell = mobile and this.compute_skill(packed_table, mobile) or 0
-		return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = packed_table }
+    local skill_for_spell = mobile and this.compute_skill(packed_table, mobile) or 0
+    return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = packed_table }
 
-	else
-		-- Always-succeed spell: use vanilla cost
-		local spell_cost = spell.magickaCost
-		local skill_for_spell = 0
-		local saved_table = { [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0, [6] = 0 }
+  else
+    -- Always-succeed spell: use vanilla cost
+    local spell_cost = spell.magickaCost
+    local skill_for_spell = 0
+    local saved_table = { [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0, [6] = 0 }
 
-		if save_always_succeeds and mobile then
-			local weakest_school = spell:getLeastProficientSchool(mobile)
-			if school_skills[weakest_school] then
-				skill_for_spell = skill_of(mobile, weakest_school)
-				saved_table[weakest_school + 1] = 1
-				tes3.player.data.motte_spell_storage[spell_id] = {
-					cost = spell_cost,
-					skill_table = saved_table,
-					cost_mod = 1,
-					chance_mod = 1,
-				}
-			else
-				skill_for_spell = 100
-				log:debug("Either no school or custom school - setting skill to 100. Not saving this skill in the DB.")
-			end
-			log:trace("Found a pre-made spell %s, that's intended to always succeed, so it's cost will stay. Relevant skill: %d",
-				spell.id, skill_for_spell)
-		else
-			log:trace("Pre-made spell %s is being cast, it's cost will stay.", spell.id)
-		end
+    if save_always_succeeds and mobile then
+      local weakest_school = spell:getLeastProficientSchool(mobile)
+      if school_skills[weakest_school] then
+        skill_for_spell = skill_of(mobile, weakest_school)
+        saved_table[weakest_school + 1] = 1
+        tes3.player.data.motte_spell_storage[spell_id] = {
+          cost = spell_cost,
+          skill_table = saved_table,
+          cost_mod = 1,
+          chance_mod = 1,
+        }
+      else
+        skill_for_spell = 100
+        log:debug("Either no school or custom school - setting skill to 100. Not saving this skill in the DB.")
+      end
+      log:trace("Found a pre-made spell %s, that's intended to always succeed, so it's cost will stay. Relevant skill: %d",
+        spell.id, skill_for_spell)
+    else
+      log:trace("Pre-made spell %s is being cast, it's cost will stay.", spell.id)
+    end
 
-		return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = saved_table }
-	end
+    return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = saved_table }
+  end
 end
 
 -- Format of the stored skill tables. 1 = failed remap attempt (data may be corrupt), 2 = +1 packed indices.
@@ -599,9 +599,9 @@ local SKILL_TABLE_VERSION = 2
 
 --- Empties the spell storage, so every spell is priced again when it is next seen.
 function this.reset_storage()
-	tes3.player.data.motte_spell_storage = {}
-	-- Costs stored from here on depend on this setting. prepare_storage compares it when a save is loaded.
-	tes3.player.data.motte_override_costs = config.override_costs_alwaystosucceed
+  tes3.player.data.motte_spell_storage = {}
+  -- Costs stored from here on depend on this setting. prepare_storage compares it when a save is loaded.
+  tes3.player.data.motte_override_costs = config.override_costs_alwaystosucceed
 end
 
 --- Called when a save is loaded. Empties the storage when the save has none yet, or when it was built
@@ -609,25 +609,25 @@ end
 --- Override Always-to-Succeed Costs, which the MCM can change while another save is loaded.
 --- @param mod_version string
 function this.prepare_storage(mod_version)
-	local data = tes3.player.data
-	local reason
-	if not data.motte_spell_storage then
-		reason = "the save has none yet"
-	elseif data.motte_skill_table_version ~= SKILL_TABLE_VERSION then
-		reason = "its skill tables have an older format"
-	elseif data.motte_version and data.motte_version ~= mod_version then
-		reason = string.format("version %s of the mod built it, this is version %s", data.motte_version, mod_version)
-	elseif data.motte_override_costs ~= config.override_costs_alwaystosucceed then
-		reason = "Override Always-to-Succeed Costs changed"
-	end
-	if reason then
-		if data.motte_spell_storage and next(data.motte_spell_storage) then
-			log:info("Emptying the spell storage: %s.", reason)
-		end
-		this.reset_storage()
-	end
-	data.motte_skill_table_version = SKILL_TABLE_VERSION
-	data.motte_version = mod_version
+  local data = tes3.player.data
+  local reason
+  if not data.motte_spell_storage then
+    reason = "the save has none yet"
+  elseif data.motte_skill_table_version ~= SKILL_TABLE_VERSION then
+    reason = "its skill tables have an older format"
+  elseif data.motte_version and data.motte_version ~= mod_version then
+    reason = string.format("version %s of the mod built it, this is version %s", data.motte_version, mod_version)
+  elseif data.motte_override_costs ~= config.override_costs_alwaystosucceed then
+    reason = "Override Always-to-Succeed Costs changed"
+  end
+  if reason then
+    if data.motte_spell_storage and next(data.motte_spell_storage) then
+      log:info("Emptying the spell storage: %s.", reason)
+    end
+    this.reset_storage()
+  end
+  data.motte_skill_table_version = SKILL_TABLE_VERSION
+  data.motte_version = mod_version
 end
 
 return this

@@ -163,6 +163,6 @@ event.register("initialized", initialized)
 -- MCM --
 
 local function modConfigReady()
-	require("Magicka of the Third Era.modules.mcm")
+  require("Magicka of the Third Era.modules.mcm")
 end
 event.register('modConfigReady', modConfigReady)

@@ -37,36 +37,36 @@ local weight_classes = { [0] = "light", [1] = "medium", [2] = "heavy" }
 -- Share of the armor penalty each slot carries.
 -- Thanks to nimble armor mod for this, using its values for now
 local armorParts = {
-	[0] = 0.1,	-- helmet
-	[1] = 0.25,	-- cuirass
-	[2] = 0.05, -- left pauldron
-	[3] = 0.05, -- right pauldron
-	[4] = 0.15, -- greaves
-	[5] = 0.15, -- boots
-	[6] = 0.05, -- left gauntlet
-	[7] = 0.05, -- right gauntlet
-	[8] = 0.15,	-- shield
---	[9] = 0.05, -- left bracer uses the same value as left gauntlet
---	[10] = 0.05 -- right bracer uses the same value as right gauntlet
+  [0] = 0.1, -- helmet
+  [1] = 0.25, -- cuirass
+  [2] = 0.05, -- left pauldron
+  [3] = 0.05, -- right pauldron
+  [4] = 0.15, -- greaves
+  [5] = 0.15, -- boots
+  [6] = 0.05, -- left gauntlet
+  [7] = 0.05, -- right gauntlet
+  [8] = 0.15, -- shield
+  -- [9] = 0.05, -- left bracer uses the same value as left gauntlet
+  -- [10] = 0.05 -- right bracer uses the same value as right gauntlet
 }
 
 local function get_armor_coefs(armored_actor)
   local armor = {light = 0, medium = 0, heavy = 0}
-	if armored_actor == nil then -- check for disabled actors
-		return armor
-	end
-	for i, value in pairs(armorParts) do
-		local stack = tes3.getEquippedItem{actor = armored_actor, objectType = tes3.objectType.armor, slot = i}
-		if i == tes3.armorSlot.leftGauntlet or i == tes3.armorSlot.rightGauntlet then	-- if no gloves - check for bracers
-			if not stack then stack = tes3.getEquippedItem{actor = armored_actor, objectType = tes3.objectType.armor, slot = i+3} end
-		end
-		if stack then
-			local class = weight_classes[stack.object.weightClass]
-			if class then
-				armor[class] = armor[class] + value
-			end
-		end
-	end
+  if armored_actor == nil then -- check for disabled actors
+    return armor
+  end
+  for i, value in pairs(armorParts) do
+    local stack = tes3.getEquippedItem{actor = armored_actor, objectType = tes3.objectType.armor, slot = i}
+    if i == tes3.armorSlot.leftGauntlet or i == tes3.armorSlot.rightGauntlet then -- if no gloves - check for bracers
+      if not stack then stack = tes3.getEquippedItem{actor = armored_actor, objectType = tes3.objectType.armor, slot = i+3} end
+    end
+    if stack then
+      local class = weight_classes[stack.object.weightClass]
+      if class then
+        armor[class] = armor[class] + value
+      end
+    end
+  end
   return armor
 end
 

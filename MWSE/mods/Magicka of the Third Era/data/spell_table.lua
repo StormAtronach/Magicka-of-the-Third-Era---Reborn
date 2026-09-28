@@ -42,7 +42,7 @@ spell_table[13] = {coef = 0.065, mag_pow = 1.15, const_offset = 1, ignore_magmin
 ------------------------------------------------------
 -- Type      |  Price  |   AOE   |   DoT   | Resists |
 ------------------------------------------------------
--- Fire      |    A    |    S    |    A    |    B    |  
+-- Fire      |    A    |    S    |    A    |    B    |
 ------------------------------------------------------
 -- Frost     |    B    |    B    |    B    |    A    |
 ------------------------------------------------------
@@ -306,7 +306,7 @@ spell_table[82] = {coef = 0.18, mag_pow = 0.7, dur_pow = -0.47, dur_min = 20, ra
 -- Fortifying magical schools sucks A LOT, so I've realized that I am gonna disable this skill for now.
 -- Anyway, it's a bad design for most skills. With non-combat skills you essentially bypass your character limitations and give yourself absurd speechcraft or sth like that.
 -- With combat skills, there are counterparts. For weapons, fortify attack. For acrobatics/athletics, jump/speed. For sneak, chameleon.
--- The only somewhat interesting are armor skills (because they scale off your armor, unlike shield) and block. And these can be restricted to premades imo. 
+-- The only somewhat interesting are armor skills (because they scale off your armor, unlike shield) and block. And these can be restricted to premades imo.
 spell_table[83] = {const_cost = 10, range0_const_cost = 100} -- unlikely buffs added by mods
 -- Fortify Maximum Magicka
 -- Obvious skip
@@ -586,7 +586,7 @@ spell_table[261] = {coef = 6, mag_pow = 0.7, dur_pow = -0.3, dur_offset = 20}
 -- lvl 35, has strong spells...
 -- 30s = 36
 spell_table[262] = {coef = 4.6, mag_pow = 0.7, dur_pow = -0.3, dur_offset = 20}
--- Darkness. 
+-- Darkness.
 -- Slightly more expensive blind.
 spell_table[263] = {coef = 0.32, mag_pow = 0.71, dur_pow = -0.4, area_pow = 0.075, range2_coef_mod = 1.25}
 -- Bound Left Pauldron

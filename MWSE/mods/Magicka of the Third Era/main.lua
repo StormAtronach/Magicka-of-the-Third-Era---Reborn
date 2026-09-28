@@ -1,6 +1,6 @@
 
 -- main.lua
--- Bootstrap: registers events, manages spell storage and Magicka Expanded distribution.
+-- Bootstrap: registers events, writes the game data, manages spell storage and Magicka Expanded distribution.
 --
 -- Module map:
 --   modules/cast_events.lua      spellCast / spellMagickaUse / spellCasted handlers
@@ -9,16 +9,19 @@
 --   modules/spell_manager.lua    spell cost computation, synergy detection, spell storage cache
 --   modules/known_effects.lua    tracks which spell effects the player has seen (UI highlight)
 --   modules/mcm.lua              Mod Configuration Menu
+--   modules/game_data.lua        writes the data below into the game's records
 --   effect_mechanics.lua         Calm, Frenzy, Rally and Demoralize work by the target's level
 --
 -- Data (static, read-only):
 --   data/premade_spells.lua      vanilla/DLC spell IDs (skips re-calculation)
 --   data/custom_price_spells.lua gold price overrides for spells with no meaningful base cost
 --   data/determinist_effects.lua effect IDs forced deterministic under semi-determinism mode (1)
---   data/force_allow_effects.lua effects explicitly unlocked for spellmaking
 --   data/spell_table.lua         base cost table per effect
 --   data/synergy_table.lua       synergy discount rules for multi-effect spells
 --   data/me_distribution.lua     Magicka Expanded spell-to-merchant distribution map
+--
+-- Data written into the game's records, which the original mod kept in a plugin:
+--   data/magic_effects.lua       base costs, what spellmakers and enchanters offer, descriptions
 
 local config = require("Magicka of the Third Era.config")
 local log = mwse.Logger.new{
@@ -28,6 +31,7 @@ local log = mwse.Logger.new{
 local UI           = require("Magicka of the Third Era.modules.ui")
 local CastEvents   = require("Magicka of the Third Era.modules.cast_events")
 local SpellManager = require("Magicka of the Third Era.modules.spell_manager")
+local GameData     = require("Magicka of the Third Era.modules.game_data")
 
 -- Registers its own events.
 require("Magicka of the Third Era.effect_mechanics")
@@ -38,9 +42,6 @@ local New_Effects      = require("Magicka of the Third Era.modules.new_effects")
 
 
 local version = "2.0"
-
--- a list of effects to force allow into spellmaking
-local force_allow_effects = require("Magicka of the Third Era.data.force_allow_effects")
 
 -----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -131,14 +132,6 @@ local function initialized()
   -- Disable vanilla spellmaking value and spellprice mechanics, if mods enable it again via script, it won't be pretty.
   tes3.findGMST("fSpellMakingValueMult").value = 0
   tes3.findGMST("fSpellValueMult").value = 0
-  -- Enable effects for spellmaking
-  local force_effects = {}
-  for i, effect_name in ipairs(force_allow_effects) do
-    --log:trace(string.format("Allowing effect: %s", effect_name))
-    force_effects[i] = tes3.getMagicEffect(tes3.effect[effect_name])
-    force_effects[i].allowSpellmaking = true
-  end
-
 
   --if is_mod_installed("ui expansion") then
   --  local ui_cfg = mwse.loadConfig("ui expansion", {components={serviceSpells=false}})
@@ -162,6 +155,9 @@ end
 
 event.register("initialized", override_uiexpansion, { priority = 99 })
 event.register("initialized", initialized)
+-- The original's plugin had its records in the game before any Lua ran.
+-- The data takes the same place, ahead of the handlers of other mods.
+event.register("initialized", GameData.apply, { priority = 1000 })
 
 -- MCM --
 

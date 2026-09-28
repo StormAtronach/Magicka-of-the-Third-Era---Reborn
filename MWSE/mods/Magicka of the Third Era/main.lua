@@ -22,6 +22,7 @@
 --
 -- Data written into the game's records, which the original mod kept in a plugin:
 --   data/magic_effects.lua       base costs, what spellmakers and enchanters offer, descriptions
+--   data/spells.lua              the spells the mod changes or adds
 
 local config = require("Magicka of the Third Era.config")
 local log = mwse.Logger.new{

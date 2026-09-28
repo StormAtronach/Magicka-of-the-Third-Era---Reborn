@@ -476,7 +476,7 @@ local function stored_cost_and_chance(spell, ctx)
   local cost, skill_for_spell
   local data = ctx.storage[spell.id]
   local t = data and data.skill_table
-  if t and t[1] and t[2] and t[3] and t[4] and t[5] and t[6] then
+  if SM.is_complete_skill_table(t) then
     local s = ctx.skills
     cost = data.cost
     skill_for_spell = t[1] * s[1] + t[2] * s[2] + t[3] * s[3] + t[4] * s[4] + t[5] * s[5] + t[6] * s[6]

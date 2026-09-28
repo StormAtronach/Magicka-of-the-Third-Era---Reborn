@@ -42,32 +42,8 @@ local force_allow_effects = require("Magicka of the Third Era.data.force_allow_e
 -----------------------------------------------------------------------------------------------------------------------------------------------
 
 -- Spell storage.
----@param e loadedEventData
-local function load_storage(e)
-  if not tes3.player.data.motte_spell_storage then
-    tes3.player.data.motte_spell_storage = {}
-  else
-    log:trace("Game loaded. Found spell storage.")
-  end
-  SpellManager.migrate_skill_tables()
-  -- check version, record one if none present, reset storage if using earlier version
-  if not tes3.player.data.motte_version then
-    tes3.player.data.motte_version = version
-  else
-    if tes3.player.data.motte_version ~= version then
-      log:info(string.format("Detected savegame with a different version of a mod: %s. Current mod version: %s, resetting the storage for an auto-update.", tes3.player.data.motte_version, version))
-      tes3.player.data.motte_spell_storage = {}
-      tes3.player.data.motte_version = version
-    end
-  end
-  -- Stored costs depend on this setting, and the MCM can change it while another save is loaded.
-  if tes3.player.data.motte_override_costs ~= config.override_costs_alwaystosucceed then
-    if next(tes3.player.data.motte_spell_storage) then
-      log:info("Override Always-to-Succeed Costs differs from the value the storage was built with. Resetting the storage.")
-      tes3.player.data.motte_spell_storage = {}
-    end
-    tes3.player.data.motte_override_costs = config.override_costs_alwaystosucceed
-  end
+local function load_storage()
+  SpellManager.prepare_storage(version)
 end
 
 -- ME Stuff

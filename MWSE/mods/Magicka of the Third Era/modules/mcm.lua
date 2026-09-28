@@ -2,6 +2,7 @@
 -- Loaded via require from main.lua's modConfigReady handler.
 
 local config = require("Magicka of the Third Era.config")
+local SpellManager = require("Magicka of the Third Era.modules.spell_manager")
 
 local template = mwse.mcm.createTemplate({
 	name               = config.confPath,
@@ -118,7 +119,7 @@ main_settings:createButton{
     ]],
 	callback = function()
 		if tes3.player ~= nil then
-			tes3.player.data.motte_spell_storage = {}
+			SpellManager.reset_storage()
 			tes3.messageBox("[Magicka of the Third Era] Spell storage has been reset.")
 		end
 	end,
@@ -250,8 +251,7 @@ category_cost_general:createOnOffButton{
 	-- Stored costs depend on this setting.
 	callback = function()
 		if tes3.player ~= nil then
-			tes3.player.data.motte_spell_storage = {}
-			tes3.player.data.motte_override_costs = config.override_costs_alwaystosucceed
+			SpellManager.reset_storage()
 		end
 	end,
 }

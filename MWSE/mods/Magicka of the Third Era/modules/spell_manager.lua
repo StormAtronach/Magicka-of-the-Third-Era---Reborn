@@ -392,28 +392,43 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 	return { cost = spell_cost, synergies = synergy_bonuses }
 end
 
+-- The fields of a mobile that hold the magic skills, by school.
+local school_skills = { [0] = "alteration", "conjuration", "destruction", "illusion", "mysticism", "restoration" }
+
+--- The mobile's skill in a school. Creatures have one magic skill for all of them.
+local function skill_of(mobile, school)
+	local skill = mobile[school_skills[school]]
+	return skill and skill.current or mobile.magic.current
+end
+
+--- Whether a skill table has a weight for each of the six schools. Storage from older versions can lack some.
+function this.is_complete_skill_table(skill_table)
+	if not skill_table then
+		return false
+	end
+	for i = 1, 6 do
+		if skill_table[i] == nil then
+			return false
+		end
+	end
+	return true
+end
+
 -- Compute the player's effective skill for a spell from the stored skill_table.
 -- skill_table uses the +1 packed format: index = school + 1.
 -- [1]=Alteration, [2]=Conjuration, [3]=Destruction, [4]=Illusion, [5]=Mysticism, [6]=Restoration.
 function this.compute_skill(skill_table, mobile)
-	for i = 1, 6 do
-		if skill_table[i] == nil then
-			log:error(string.format(
-				"compute_skill: skill_table[%d] is nil. Full table: [1]=%s [2]=%s [3]=%s [4]=%s [5]=%s [6]=%s",
-				i,
-				tostring(skill_table[1]), tostring(skill_table[2]), tostring(skill_table[3]),
-				tostring(skill_table[4]), tostring(skill_table[5]), tostring(skill_table[6])
-			))
-			return 0
-		end
+	if not this.is_complete_skill_table(skill_table) then
+		log:error("compute_skill: the skill table lacks a school: [1]=%s [2]=%s [3]=%s [4]=%s [5]=%s [6]=%s",
+			tostring(skill_table[1]), tostring(skill_table[2]), tostring(skill_table[3]),
+			tostring(skill_table[4]), tostring(skill_table[5]), tostring(skill_table[6]))
+		return 0
 	end
-	return
-		skill_table[1] * (mobile.alteration  and mobile.alteration.current  or mobile.magic.current or 0)
-		+ skill_table[2] * (mobile.conjuration and mobile.conjuration.current or mobile.magic.current or 0)
-		+ skill_table[3] * (mobile.destruction and mobile.destruction.current or mobile.magic.current or 0)
-		+ skill_table[4] * (mobile.illusion    and mobile.illusion.current    or mobile.magic.current or 0)
-		+ skill_table[5] * (mobile.mysticism   and mobile.mysticism.current   or mobile.magic.current or 0)
-		+ skill_table[6] * (mobile.restoration and mobile.restoration.current or mobile.magic.current or 0)
+	local skill = 0
+	for i = 1, 6 do
+		skill = skill + skill_table[i] * (skill_of(mobile, i - 1) or 0)
+	end
+	return skill
 end
 
 -- Normalize a working skill_table (index 0=Alteration) by total_effect_cost and
@@ -486,14 +501,8 @@ function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobi
 	if tes3.player.data.motte_spell_storage[spell_id] then
 		local spell_data = tes3.player.data.motte_spell_storage[spell_id]
 		local skill_table = spell_data.skill_table
-		local valid = skill_table
-		if valid then
-			for i = 1, 6 do
-				if skill_table[i] == nil then valid = false; break end
-			end
-		end
-		if not valid then
-			log:warn(string.format("Spell %s has corrupt skill_table in storage, evicting for recalculation.", spell_id))
+		if not this.is_complete_skill_table(skill_table) then
+			log:warn("Spell %s has corrupt skill_table in storage, evicting for recalculation.", spell_id)
 			tes3.player.data.motte_spell_storage[spell_id] = nil
 		else
 			local spell_cost = spell_data.cost
@@ -561,34 +570,9 @@ function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobi
 		local saved_table = { [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0, [6] = 0 }
 
 		if save_always_succeeds and mobile then
-			local do_not_save_this = false
 			local weakest_school = spell:getLeastProficientSchool(mobile)
-			local relevant_skill
-
-			if weakest_school == 0 then
-				relevant_skill = mobile.alteration and mobile.alteration.current or mobile.magic.current
-			elseif weakest_school == 1 then
-				relevant_skill = mobile.conjuration and mobile.conjuration.current or mobile.magic.current
-			elseif weakest_school == 2 then
-				relevant_skill = mobile.destruction and mobile.destruction.current or mobile.magic.current
-			elseif weakest_school == 3 then
-				relevant_skill = mobile.illusion and mobile.illusion.current or mobile.magic.current
-			elseif weakest_school == 4 then
-				relevant_skill = mobile.mysticism and mobile.mysticism.current or mobile.magic.current
-			elseif weakest_school == 5 then
-				relevant_skill = mobile.restoration and mobile.restoration.current or mobile.magic.current
-			else
-				relevant_skill = 100
-				do_not_save_this = true
-				log:debug("Either no school or custom school - setting skill to 100. Not saving this skill in the DB.")
-			end
-
-			log:trace(string.format(
-			          "Found a pre-made spell %s, that's intended to always succeed, so it's cost will stay. Relevant skill: %d",
-			          spell.id, relevant_skill))
-			skill_for_spell = relevant_skill
-
-			if not do_not_save_this then
+			if school_skills[weakest_school] then
+				skill_for_spell = skill_of(mobile, weakest_school)
 				saved_table[weakest_school + 1] = 1
 				tes3.player.data.motte_spell_storage[spell_id] = {
 					cost = spell_cost,
@@ -596,23 +580,54 @@ function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobi
 					cost_mod = 1,
 					chance_mod = 1,
 				}
+			else
+				skill_for_spell = 100
+				log:debug("Either no school or custom school - setting skill to 100. Not saving this skill in the DB.")
 			end
+			log:trace("Found a pre-made spell %s, that's intended to always succeed, so it's cost will stay. Relevant skill: %d",
+				spell.id, skill_for_spell)
 		else
-			log:trace(string.format("Pre-made spell %s is being cast, it's cost will stay.", spell.id))
+			log:trace("Pre-made spell %s is being cast, it's cost will stay.", spell.id)
 		end
 
 		return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = saved_table }
 	end
 end
 
--- If the +1 skill_table format hasn't been confirmed for this save, clear storage so all
--- spells are recalculated fresh. Guarded by motte_skill_table_version so it only resets once.
--- Version history: 1 = failed remap attempt (data may be corrupt), 2 = clean reset to +1 format.
-function this.migrate_skill_tables()
-	if tes3.player.data.motte_skill_table_version == 2 then return end
+-- Format of the stored skill tables. 1 = failed remap attempt (data may be corrupt), 2 = +1 packed indices.
+local SKILL_TABLE_VERSION = 2
+
+--- Empties the spell storage, so every spell is priced again when it is next seen.
+function this.reset_storage()
 	tes3.player.data.motte_spell_storage = {}
-	tes3.player.data.motte_skill_table_version = 2
-	log:info("Spell storage cleared for +1 skill_table format migration (v2).")
+	-- Costs stored from here on depend on this setting. prepare_storage compares it when a save is loaded.
+	tes3.player.data.motte_override_costs = config.override_costs_alwaystosucceed
+end
+
+--- Called when a save is loaded. Empties the storage when the save has none yet, or when it was built
+--- with another skill table format, by another version of the mod, or with another value of
+--- Override Always-to-Succeed Costs, which the MCM can change while another save is loaded.
+--- @param mod_version string
+function this.prepare_storage(mod_version)
+	local data = tes3.player.data
+	local reason
+	if not data.motte_spell_storage then
+		reason = "the save has none yet"
+	elseif data.motte_skill_table_version ~= SKILL_TABLE_VERSION then
+		reason = "its skill tables have an older format"
+	elseif data.motte_version and data.motte_version ~= mod_version then
+		reason = string.format("version %s of the mod built it, this is version %s", data.motte_version, mod_version)
+	elseif data.motte_override_costs ~= config.override_costs_alwaystosucceed then
+		reason = "Override Always-to-Succeed Costs changed"
+	end
+	if reason then
+		if data.motte_spell_storage and next(data.motte_spell_storage) then
+			log:info("Emptying the spell storage: %s.", reason)
+		end
+		this.reset_storage()
+	end
+	data.motte_skill_table_version = SKILL_TABLE_VERSION
+	data.motte_version = mod_version
 end
 
 return this

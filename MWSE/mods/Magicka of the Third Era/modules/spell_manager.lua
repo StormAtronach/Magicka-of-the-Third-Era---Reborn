@@ -418,7 +418,8 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 		local coef = 1
 		local duration_pow = 0
 		local duration_min = 1
-		local area_pow = 0.2
+		-- Same default as effect_cost_advanced, or merged effects cost more than one effect of the summed magnitude.
+		local area_pow = 0.1
 		local constant_offset = 0
 		local mag_offset = 0
 		local duration_offset = 0

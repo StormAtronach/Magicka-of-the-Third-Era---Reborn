@@ -70,6 +70,72 @@ local school_defaults = {
 	[6] = { coef = 0.40, mag_pow = 0.70, dur_pow = -0.30, area_pow = 0.10 }, -- Restoration: healing/buffs
 }
 
+-- Effects whose coefficient depends on the attribute or the skill they hit.
+local attribute_effects = { [17] = true, [22] = true } -- Drain Attribute, Damage Attribute
+local skill_effects = { [21] = true, [26] = true } -- Drain Skill, Damage Skill
+
+-- What a parameter is when the effect's row in the spell table leaves it out.
+local param_defaults = {
+	mag_pow = 1,
+	coef = 1,
+	dur_pow = 0,
+	dur_min = 1,
+	area_pow = 0.1,
+	const_offset = 0,
+	mag_offset = 0,
+	dur_offset = 0,
+	strength_min = 0,
+}
+-- The multi-effect formula has its own default for area_pow, as in the original mod.
+local multi_effect_area_pow = 0.2
+
+--- The parameters the cost formulas take from an effect and its row in the spell table.
+--- Both the single-effect and the multi-effect formula read them here, so they cannot drift apart.
+--- @param effect table An effect with id, min, max, duration, radius, rangeType, attribute and skill.
+--- @param area_pow_default number? Used in place of the default for area_pow.
+local function resolve_effect_params(effect, area_pow_default)
+	local row = spell_table[effect.id]
+	if not row then
+		local school = effect.object and effect.object.school or 0
+		row = school_defaults[school + 1] or school_defaults[1]
+		log:warn("Effect ID %d (%s) not in spell table, using school %d defaults.",
+			effect.id, effect.object and effect.object.name or "unknown", school)
+	end
+
+	local p = { row = row }
+	for name, default in pairs(param_defaults) do
+		p[name] = row[name] or default
+	end
+	if area_pow_default and not row.area_pow then
+		p.area_pow = area_pow_default
+	end
+
+	-- range mods
+	if effect.rangeType == 1 then
+		p.coef = p.coef * (row.range1_coef_mod or 1)
+		p.dur_pow = row.range1_dur or p.dur_pow
+	elseif effect.rangeType == 2 then
+		p.coef = p.coef * (row.range2_coef_mod or 1)
+		p.dur_pow = row.range2_dur or p.dur_pow
+	end
+	if attribute_effects[effect.id] then
+		p.coef = p.coef * att_table_offense[effect.attribute]
+	end
+	if skill_effects[effect.id] then
+		p.coef = p.coef * skill_table_offense[effect.skill]
+	end
+
+	local magnitude
+	if row.ignore_magmin then
+		magnitude = 2 * (math.max(effect.max, 1) + p.mag_offset)
+	else
+		magnitude = math.max(effect.min, 1) + math.max(effect.max, 1) + 2 * p.mag_offset
+	end
+	p.duration = math.max(effect.duration + p.dur_offset, p.dur_min)
+	p.strength = math.max(magnitude, p.strength_min) * p.duration
+	return p
+end
+
 local function detect_synergies(effect_db, effect_costs, synergy_array)
 	-- preparation
 	-- MODIFIERS: unsure if I have to do anything here. maybe skip modifier effects? but if they're not a part of a synergy then it's fine?
@@ -204,16 +270,23 @@ local function detect_synergies(effect_db, effect_costs, synergy_array)
 	return synergy_bonuses
 end
 
+local function is_modifier_effect(effect)
+	for _, effect_id in ipairs(modifier_effect_ids) do
+		if effect.id == effect_id then
+			return true
+		end
+	end
+	return false
+end
+
 local function detect_all_modifier_effects(effect_array)
 	local modifiers = {}
 	local seen = {}
-	for j, effect in ipairs(effect_array) do
-		for k, effect_id in ipairs(modifier_effect_ids) do
-			if effect.id == effect_id and not seen[effect_id] then
-				log:trace(string.format("Found a modifier effect: %s", effect.id))
-				table.insert(modifiers, effect.id)
-				seen[effect_id] = true
-			end
+	for _, effect in ipairs(effect_array) do
+		if is_modifier_effect(effect) and not seen[effect.id] then
+			log:trace("Found a modifier effect: %s", effect.id)
+			table.insert(modifiers, effect.id)
+			seen[effect.id] = true
 		end
 	end
 	return modifiers
@@ -222,20 +295,17 @@ end
 local function weighed_average(var_array, weight_array, method)
 	local avg = 0
 	local sum = 0
+	for _, weight in ipairs(weight_array) do
+		sum = sum + weight
+	end
 	if method == "arithmetic" then
 		for i, x in ipairs(var_array) do
 			avg = avg + x * weight_array[i]
-		end
-		for i, x in ipairs(weight_array) do
-			sum = sum + x
 		end
 		avg = avg / sum
 	elseif method == "geometric" then
 		for i, x in ipairs(var_array) do
 			avg = avg + math.log(x) * weight_array[i]
-		end
-		for i, x in ipairs(weight_array) do
-			sum = sum + x
 		end
 		avg = math.exp(avg / sum)
 	end
@@ -245,117 +315,25 @@ end
 -- Effect cost calculation, grabs all the info from the spell table and uses a generalized alg in most cases.
 this.effect_cost_advanced = function(effect)
 	-- MODIFIERS: may need to add a check for modifier effect
-	local t = {}
-	local effect_cost = 0
-	local effect_mag = 0
-	local effect_strength = 0
-	local effect_id = effect.id
-	-- parameters to grab, default values if not in the db
-	local mag_pow = 1
-	local coef = 1
-	local duration_pow = 0
-	local duration_min = 1
-	local area_pow = 0.1
-	local constant_offset = 0
-	local mag_offset = 0
-	local duration_offset = 0
-	local effect_strength_min = 0
-	-- lua is stupid and starts arrays from 1, we have to remap the id=0 to something else if we want an iterable table
-	-- Why do we want an iterable table, again?
-	if effect_id == 0 then
-		effect_id = 3434
+	local p = resolve_effect_params(effect)
+	local effect_cost
+	-- Check for overrides
+	if p.row.range0_const_cost and effect.rangeType == 0 then
+		effect_cost = p.row.range0_const_cost
+	elseif p.row.const_cost then
+		effect_cost = p.row.const_cost
+	else
+		effect_cost = (p.strength ^ p.mag_pow) * p.coef *
+		              (p.duration ^ p.dur_pow) *
+		              ((effect.radius + 1) ^ p.area_pow) + p.const_offset
 	end
-	t = spell_table[effect_id]
-	if not t then
-		local school = effect.object and effect.object.school or 0
-		t = school_defaults[school + 1] or school_defaults[1]
-		log:warn(string.format("Effect ID %d (%s) not in spell table, using school %d defaults.",
-			effect.id, effect.object and effect.object.name or "unknown", school))
-	end
-	if t then
-		-- get everything from the table, if possible
-		if t.mag_pow then
-			mag_pow = t.mag_pow
-		end
-		if t.coef then
-			coef = t.coef
-		end
-		if t.dur_pow then
-			duration_pow = t.dur_pow
-		end
-		if t.dur_min then
-			duration_min = t.dur_min
-		end
-		if t.area_pow then
-			area_pow = t.area_pow
-		end
-		-- offsets
-		if t.const_offset then
-			constant_offset = t.const_offset
-		end
-		if t.mag_offset then
-			mag_offset = t.mag_offset
-		end
-		if t.dur_offset then
-			duration_offset = t.dur_offset
-		end
-		-- range mods
-		if effect.rangeType == 1 then
-			if t.range1_coef_mod then
-				coef = coef * t.range1_coef_mod
-			end
-			if t.range1_dur then
-				duration_pow = t.range1_dur
-			end
-		elseif effect.rangeType == 2 then
-			if t.range2_coef_mod then
-				coef = coef * t.range2_coef_mod
-			end
-			if t.range2_dur then
-				duration_pow = t.range2_dur
-			end
-		end
-		-- modify coef for attribute/skill
-		if effect_id == 17 or effect_id == 22 then
-			coef = coef * att_table_offense[effect.attribute]
-		end
-		if effect_id == 21 or effect_id == 26 then
-			coef = coef * skill_table_offense[effect.skill]
-		end
-
-		-- minimal strength
-		if t.strength_min then
-			effect_strength_min = t.strength_min
-		end
-		-- Calculate effect strength
-		if t.ignore_magmin then
-			effect_mag = math.max(2 * (math.max(effect.max, 1) + mag_offset), effect_strength_min)
-		else
-			effect_mag = math.max((math.max(effect.min, 1) + math.max(effect.max, 1) + 2 * mag_offset), effect_strength_min)
-		end
-		effect_strength = effect_mag * math.max((effect.duration + duration_offset), duration_min)
-		-- Check for overrides
-		if t.range0_const_cost and effect.rangeType == 0 then
-			effect_cost = t.range0_const_cost
-		else
-			if t.const_cost then
-				effect_cost = t.const_cost
-			else
-				effect_cost = (effect_strength ^ mag_pow) * coef *
-				              (math.max((effect.duration + duration_offset), duration_min) ^ duration_pow) *
-				              ((effect.radius + 1) ^ area_pow) + constant_offset
-			end
-		end
-		log:trace(string.format("Effect ID %d calculated successfully. Costs: %.2f.", effect_id, effect_cost))
-	end
+	log:trace("Effect ID %d calculated successfully. Costs: %.2f.", effect.id, effect_cost)
 	return effect_cost
 end
 
 -- High effort formula for multi effect spells to make them cost correctly with non-linear scaling
 -- Spell with 2 effects "frost damage 30" and "frost damage 20" will cost exactly the same as the spell with 1 effect "frost damage 50", although these effects, when added up, cost more.
 this.spell_cost_advanced = function(effect_array, cost_array)
-
-	local spell_cost = 0
 	local strength_array = {}
 	local mag_pow_array = {}
 	local coef_array = {}
@@ -364,17 +342,7 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 	local radius_array = {}
 	local area_pow_array = {}
 	local const_offset_array = {}
-
 	local has_const_offset = false
-	local weighed_mag_pow = 1
-	local weighed_coef = 1
-	local weighed_duration = 1
-	local weighed_duration_pow = 1
-	local weighed_radius = 1
-	local weighed_area_pow = 1
-	local weighed_const_offset = 0
-	local total_strength = 0
-	local sum_of_costs = 0
 
 	-- Synergies!
 	local synergy_bonuses = detect_synergies(effect_array, cost_array, synergy_table)
@@ -382,171 +350,83 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 	-- remove modifiers from further procession
 	local non_modifier_effect_array = {}
 	local non_modifier_cost_array = {}
-	-- numberer (maybe redundant?)
-	local n = 1
 	for i, effect in ipairs(effect_array) do
-		local modifier = false
-		-- modifier check for the effect #i
-		for k, effect_id in ipairs(modifier_effect_ids) do
-			if effect.id == effect_id then
-				modifier = true
-				log:trace(string.format("Found a modifier effect: %s", effect.id))
-			end
-		end
-		if not (modifier) then
+		if is_modifier_effect(effect) then
+			log:trace("Found a modifier effect: %s", effect.id)
+		else
 			table.insert(non_modifier_effect_array, effect)
-			table.insert(non_modifier_cost_array, cost_array[n])
+			table.insert(non_modifier_cost_array, cost_array[i])
 		end
-		n = n + 1
+	end
+	-- Nothing to merge. The averages below would divide by zero.
+	if #non_modifier_effect_array == 0 then
+		return { cost = 0, synergies = synergy_bonuses }
 	end
 
 	-- we process non-modifiers ONLY!
-	for i = 1, #non_modifier_effect_array do
-		local t = {}
-		-- parameters for the effects
-		local mag_pow = 1
-		local coef = 1
-		local duration_pow = 0
-		local duration_min = 1
-		local area_pow = 0.2
-		local constant_offset = 0
-		local mag_offset = 0
-		local duration_offset = 0
-		local effect_strength_min = 0
-
-		local effect_mag = 0
-		-- we might fail to find water breathing, so I've added both 0 and 3434 as indices.
-		t = spell_table[non_modifier_effect_array[i].id]
-		if not t then
-			local school = non_modifier_effect_array[i].object and non_modifier_effect_array[i].object.school or 0
-			t = school_defaults[school + 1] or school_defaults[1]
-			log:warn(string.format("Effect ID %d (%s) not in spell table, using school %d defaults.",
-				non_modifier_effect_array[i].id,
-				non_modifier_effect_array[i].object and non_modifier_effect_array[i].object.name or "unknown",
-				school))
+	for i, effect in ipairs(non_modifier_effect_array) do
+		local p = resolve_effect_params(effect, multi_effect_area_pow)
+		-- Skip if it has overrides (abusable / non-mergeable skill). Returns 0 and therefore we use sum of effect costs for the price instead.
+		-- for const_cost, have a 'modifier effect check!!!'
+		if (p.row.range0_const_cost and effect.rangeType == 0) or p.row.const_cost then
+			log:trace(
+			"This spell is not valid for the advanced formula (constant cost). Aborting calculations, using sum of effects instead.")
+			return { cost = 0, synergies = synergy_bonuses }
 		end
-		if t then
-			-- basic
-			if t.mag_pow then
-				mag_pow = t.mag_pow
-			end
-			if t.coef then
-				coef = t.coef
-			end
-			if t.dur_pow then
-				duration_pow = t.dur_pow
-			end
-			if t.dur_min then
-				duration_min = t.dur_min
-			end
-			if t.area_pow then
-				area_pow = t.area_pow
-			end
-			-- offsets
-			if t.const_offset then
-				constant_offset = t.const_offset
-			end
-			if t.mag_offset then
-				mag_offset = t.mag_offset
-			end
-			if t.dur_offset then
-				duration_offset = t.dur_offset
-			end
-			-- range mods
-			if non_modifier_effect_array[i].rangeType == 1 then
-				if t.range1_coef_mod then
-					coef = coef * t.range1_coef_mod
-				end
-				if t.range1_dur then
-					duration_pow = t.range1_dur
-				end
-			elseif non_modifier_effect_array[i].rangeType == 2 then
-				if t.range2_coef_mod then
-					coef = coef * t.range2_coef_mod
-				end
-				if t.range2_dur then
-					duration_pow = t.range2_dur
-				end
-			end
-			-- modify coef for attribute/skill
-			if non_modifier_effect_array[i].id == 17 or non_modifier_effect_array[i].id == 22 then
-				coef = coef * att_table_offense[non_modifier_effect_array[i].attribute]
-			end
-			if non_modifier_effect_array[i].id == 21 or non_modifier_effect_array[i].id == 26 then
-				coef = coef * skill_table_offense[non_modifier_effect_array[i].skill]
-			end
-			-- minimal strength
-			if t.strength_min then
-				effect_strength_min = t.strength_min
-			end
-			-- Skip if it has overrides (abusable / non-mergeable skill). Returns 0 and therefore we use sum of effect costs for the price instead.
-			-- for const_cost, have a 'modifier effect check!!!'
-			if (t.range0_const_cost and non_modifier_effect_array[i].rangeType == 0) or t.const_cost then
-				log:trace(
-				"This spell is not valid for the advanced formula (constant cost). Aborting calculations, using sum of effects instead.")
-				return { cost = 0, synergies = synergy_bonuses }
-			end
-			-- Calculate strength and put it in array.
-			if t.ignore_magmin then
-				effect_mag = math.max(2 * (math.max(non_modifier_effect_array[i].max, 1) + mag_offset), effect_strength_min)
-			else
-				effect_mag = math.max(
-				             math.max(non_modifier_effect_array[i].min, 1) + math.max(non_modifier_effect_array[i].max, 1) + 2 *
-				             mag_offset, effect_strength_min)
-			end
-			strength_array[i] = effect_mag * math.max((non_modifier_effect_array[i].duration + duration_offset), duration_min)
-			-- Add stuff to separate arrays to use them for more readable weighed average calculation.
-			if constant_offset > 0 then
-				has_const_offset = true
-			end
-			mag_pow_array[i] = mag_pow
-			coef_array[i] = coef
-			duration_array[i] = math.max((non_modifier_effect_array[i].duration + duration_offset), duration_min)
-			duration_pow_array[i] = duration_pow
-			radius_array[i] = non_modifier_effect_array[i].radius + 1
-			area_pow_array[i] = area_pow
-			const_offset_array[i] = constant_offset
+		-- Add stuff to separate arrays to use them for more readable weighed average calculation.
+		if p.const_offset > 0 then
+			has_const_offset = true
 		end
+		strength_array[i] = p.strength
+		mag_pow_array[i] = p.mag_pow
+		coef_array[i] = p.coef
+		duration_array[i] = p.duration
+		duration_pow_array[i] = p.dur_pow
+		radius_array[i] = effect.radius + 1
+		area_pow_array[i] = p.area_pow
+		const_offset_array[i] = p.const_offset
 	end
 
 	-- weighing everything
-	weighed_mag_pow = weighed_average(mag_pow_array, non_modifier_cost_array, "geometric")
-	weighed_coef = weighed_average(coef_array, non_modifier_cost_array, "geometric")
-	weighed_duration = weighed_average(duration_array, non_modifier_cost_array, "geometric")
-	weighed_duration_pow = weighed_average(duration_pow_array, non_modifier_cost_array, "arithmetic")
-	weighed_radius = weighed_average(radius_array, non_modifier_cost_array, "geometric")
-	weighed_area_pow = weighed_average(area_pow_array, non_modifier_cost_array, "arithmetic")
+	local weighed_mag_pow = weighed_average(mag_pow_array, non_modifier_cost_array, "geometric")
+	local weighed_coef = weighed_average(coef_array, non_modifier_cost_array, "geometric")
+	local weighed_duration = weighed_average(duration_array, non_modifier_cost_array, "geometric")
+	local weighed_duration_pow = weighed_average(duration_pow_array, non_modifier_cost_array, "arithmetic")
+	local weighed_radius = weighed_average(radius_array, non_modifier_cost_array, "geometric")
+	local weighed_area_pow = weighed_average(area_pow_array, non_modifier_cost_array, "arithmetic")
 	-- This might be still non-ideal, need to think.
 	-- Const offsets, effectively, do not stack additively, which is generally good (otherwise it would make spells with several const offsets unusable), but might lead to some weird cases.
+	local weighed_const_offset = 0
 	if has_const_offset then
 		weighed_const_offset = weighed_average(const_offset_array, non_modifier_cost_array, "arithmetic")
 	end
 
-	for i, str in ipairs(strength_array) do
-		total_strength = total_strength + str
+	local total_strength = 0
+	for _, strength in ipairs(strength_array) do
+		total_strength = total_strength + strength
 	end
 
-	for i, cost in ipairs(non_modifier_cost_array) do
+	local sum_of_costs = 0
+	for _, cost in ipairs(non_modifier_cost_array) do
 		sum_of_costs = sum_of_costs + cost
 	end
 
 	-- Here it comes
-	spell_cost = (total_strength ^ weighed_mag_pow) * weighed_coef * (weighed_duration ^ weighed_duration_pow) *
-	             (weighed_radius ^ weighed_area_pow) + weighed_const_offset
+	local spell_cost = (total_strength ^ weighed_mag_pow) * weighed_coef * (weighed_duration ^ weighed_duration_pow) *
+	                   (weighed_radius ^ weighed_area_pow) + weighed_const_offset
 
 	if log.level >= mwse.logLevel.trace then
 		for i = 1, #non_modifier_effect_array do
-			log:trace(string.format(
-			          "Effect no %d. Strength: %d, Mag pow: %.2f, Coef: %.2f, Duration: %d, Duration pow: %.2f, Radius: %d, Area pow: %.2f, Const offset: %d",
-			          i, strength_array[i], mag_pow_array[i], coef_array[i], duration_array[i], duration_pow_array[i],
-			          radius_array[i], area_pow_array[i], const_offset_array[i]))
+			log:trace(
+			"Effect no %d. Strength: %d, Mag pow: %.2f, Coef: %.2f, Duration: %d, Duration pow: %.2f, Radius: %d, Area pow: %.2f, Const offset: %d",
+			i, strength_array[i], mag_pow_array[i], coef_array[i], duration_array[i], duration_pow_array[i],
+			radius_array[i], area_pow_array[i], const_offset_array[i])
 		end
-		log:trace(string.format(
-		          "Weighed mag_pow: %.3f\nweighed coef: %.3f\nweighed duration: %.3f\nweighed duration pow: %.3f\nweighed radius: %.3f\nweighed area pow: %.3f\nweighed const offset: %.3f",
-		          weighed_mag_pow, weighed_coef, weighed_duration, weighed_duration_pow, weighed_radius, weighed_area_pow,
-		          weighed_const_offset))
-		log:trace(string.format("Old cost (sum of effect costs): %.2f\nNew cost: %.2f.\nLowest one will be used.",
-		                        sum_of_costs, spell_cost))
+		log:trace(
+		"Weighed mag_pow: %.3f\nweighed coef: %.3f\nweighed duration: %.3f\nweighed duration pow: %.3f\nweighed radius: %.3f\nweighed area pow: %.3f\nweighed const offset: %.3f",
+		weighed_mag_pow, weighed_coef, weighed_duration, weighed_duration_pow, weighed_radius, weighed_area_pow,
+		weighed_const_offset)
+		log:trace("Old cost (sum of effect costs): %.2f\nNew cost: %.2f.\nLowest one will be used.", sum_of_costs, spell_cost)
 	end
 
 	if sum_of_costs < spell_cost and #non_modifier_effect_array > 1 then
@@ -561,15 +441,14 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 	local modifier_list = detect_all_modifier_effects(effect_array)
 	if #modifier_list > 0 then
 		log:trace("Modifiers have been found. Processing the modifier effects.")
-		local modifier_changes = { difficulty = 1, cost = 1 }
-		modifier_changes = Modifier_Logic.process_modifiers(effect_array, cost_array, modifier_list)
+		local modifier_changes = Modifier_Logic.process_modifiers(effect_array, cost_array, modifier_list)
 		spell_cost = spell_cost * modifier_changes.difficulty
 	end
 
 	-- Apply synergies. Treats the 'better' cost. Still won't apply synergies to spells with abusable effects.
 	if synergy_bonuses.cost_discount > 0 then
 		spell_cost = spell_cost * (1 - synergy_bonuses.cost_discount)
-		log:trace(string.format("Synergies found! Discount is %.2f * spell cost!", synergy_bonuses.cost_discount))
+		log:trace("Synergies found! Discount is %.2f * spell cost!", synergy_bonuses.cost_discount)
 	end
 
 	return { cost = spell_cost, synergies = synergy_bonuses }

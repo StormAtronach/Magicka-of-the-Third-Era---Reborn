@@ -428,6 +428,45 @@ local function pack_skill_table(working_table, total_effect_cost)
 	return packed
 end
 
+--- Prices a list of effects, for a stored spell or for one that is still being made.
+--- @param effects table[] Effects with id, min, max, duration, radius, rangeType, attribute, skill and object.
+--- @return { cost: number, skill_table: number[], discount: number }? priced Nil when the effects cost nothing. `discount` is the share the synergies found take off.
+function this.price_effects(effects)
+	local school_costs = { [0] = 0, [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0 }
+	local costs = {}
+	local total_effect_cost = 0
+	for i, effect in ipairs(effects) do
+		local effect_cost = this.effect_cost_advanced(effect)
+		costs[i] = effect_cost
+		total_effect_cost = total_effect_cost + effect_cost
+		-- An effect of a custom school counts towards Alteration.
+		local school = effect.object.school
+		if school < 0 or school > 5 then
+			school = 0
+		end
+		school_costs[school] = school_costs[school] + effect_cost
+	end
+	if total_effect_cost == 0 then
+		return nil
+	end
+
+	-- Single vs multi-effect cost formula
+	local cost, discount = total_effect_cost, 0
+	if #effects == 1 then
+		log:trace("One-effect spell found! Using basic formula.")
+	else
+		log:trace("Multi-effect spell found! Trying advanced formula.")
+		local merged = this.spell_cost_advanced(effects, costs)
+		discount = merged.synergies.cost_discount
+		if merged.cost == 0 then
+			log:trace("Non-legit spell for advanced formula! Going for plan B.")
+		else
+			cost = merged.cost
+		end
+	end
+	return { cost = cost, skill_table = pack_skill_table(school_costs, total_effect_cost), discount = discount }
+end
+
 -- Get spell cost and skill data from the cache, or calculate and cache it fresh.
 --
 -- Parameters:
@@ -470,45 +509,19 @@ function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobi
 
 	if config.override_costs_alwaystosucceed or not spell.alwaysSucceeds then
 		-- Full cost calculation path (normal spells, or always-succeed with cost override)
-		local working_table = { [0] = 0, [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0 }
-		local effect_db = {}
-		local cost_db = {}
-		local total_effect_cost = 0
-
-		for j, effect in ipairs(spell.effects) do
+		local effects = {}
+		for _, effect in ipairs(spell.effects) do
+			-- The empty slots of a spell have no object.
 			if effect.object then
-				local eff_cost = this.effect_cost_advanced(effect)
-				cost_db[j] = eff_cost
-				effect_db[j] = effect
-				total_effect_cost = total_effect_cost + eff_cost
-				if effect.object.school >= 0 and effect.object.school <= 5 then
-					working_table[effect.object.school] = working_table[effect.object.school] + eff_cost
-				else
-					working_table[0] = working_table[0] + eff_cost
-				end
+				table.insert(effects, effect)
 			end
 		end
-
-		if total_effect_cost == 0 then
+		local priced = this.price_effects(effects)
+		if not priced then
 			return nil
 		end
-
-		local packed_table = pack_skill_table(working_table, total_effect_cost)
-
-		-- Single vs multi-effect cost formula
-		local spell_cost
-		if #effect_db == 1 then
-			log:trace("One-effect spell found! Using basic formula.")
-			spell_cost = total_effect_cost
-		else
-			log:trace("Multi-effect spell found! Trying advanced formula.")
-			local adv_calc = this.spell_cost_advanced(effect_db, cost_db)
-			spell_cost = adv_calc.cost
-			if spell_cost == 0 then
-				log:trace("Non-legit spell for advanced formula! Going for plan B.")
-				spell_cost = total_effect_cost
-			end
-		end
+		local spell_cost = priced.cost
+		local packed_table = priced.skill_table
 
 		-- Apply unique spell overrides
 		if unique_spell_data.use_premade_cost then

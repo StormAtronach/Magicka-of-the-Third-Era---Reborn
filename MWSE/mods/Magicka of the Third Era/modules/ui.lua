@@ -11,8 +11,6 @@ local custom_price_spells      = require("Magicka of the Third Era.data.custom_p
 
 local log = mwse.Logger.new{ modName = "Magicka of the Third Era", logLevel = config.log_level }
 
-local effect_cost_advanced    = SM.effect_cost_advanced
-local spell_cost_advanced     = SM.spell_cost_advanced
 local calculate_cast_chance   = Formulas.calculate_cast_chance
 
 local spellmaker_cost  = 0
@@ -39,15 +37,7 @@ local function spellmaker_update(e)
     local psp_p = ms_sel:findChild("PartScrollPane_pane")
     if not psp_p then return end
     local effect_database = psp_p.children
-    -- Calculation variables
-    local total_effect_cost = 0
-    local spell_cost = 0
-    local spell_chance = 0
-    local skill_for_spell = 0
-    local effect_db = {}
-    local cost_db = {}
-    local magic_skill_table = {[0] = 0, [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0}
-    local discount = 0
+    local effects = {}
     -- Disposition matters, but by default only a little, because you only need 1 NPC with max disposition
     local disp_factor = 1
     local service_actor_sm = tes3ui.getServiceActor()
@@ -64,8 +54,6 @@ local function spellmaker_update(e)
     for i=1, #effect_database do
       local elem = effect_database[i]
       local effect_obj = elem:getPropertyObject("MenuSpellmaking_Effect")
-      local effect_id = effect_obj.id
-      local effect_school = effect_obj.school
       local duration = elem:getPropertyInt("MenuSpellmaking_Duration")
       -- Some stupid bug when default duration is 0, ruins the calculations and is factually incorrect (you can never have a duration of 0 in a spell, without MCP at least)
       if duration == 0 then duration = 1 end
@@ -79,54 +67,22 @@ local function spellmaker_update(e)
       local e_skill = elem:getPropertyInt("MenuSpellmaking_Skill")
 
       -- object gives effects missing from the spell table their school's defaults, like the created spell gets.
-      local effect_data = {id = effect_id, object = effect_obj, min = mag_min, max = mag_max, duration = duration, radius = radius, rangeType = range, attribute = e_attribute, skill = e_skill}
-      local effect_cost = effect_cost_advanced(effect_data)
-      effect_db[i] = effect_data
-      cost_db[i] = effect_cost
-
-      total_effect_cost = total_effect_cost + effect_cost
-
-      if effect_school >= 0 and effect_school <= 5 then
-        magic_skill_table[effect_school] = magic_skill_table[effect_school] + effect_cost
-      else
-        -- case of custom schools or crap like this
-        magic_skill_table[0] = magic_skill_table[0] + effect_cost
-      end
+      effects[i] = {id = effect_obj.id, object = effect_obj, min = mag_min, max = mag_max, duration = duration, radius = radius, rangeType = range, attribute = e_attribute, skill = e_skill}
     end
     -- MODLABEL 1
-    -- If spell is legit, re-calculate the cost
-    if total_effect_cost > 0 then
-      if #effect_db == 1 then
-        log:trace("One-effect spell in the spellmaker found! Using basic formula.")
-        spell_cost = total_effect_cost
-      else
-        -- skip all mod effects for adv formula!!
-        log:trace("Multi-effect spell in the spellmaker found! Trying advanced formula.")
-        local adv_calc = spell_cost_advanced(effect_db, cost_db)
-        spell_cost = adv_calc.cost
-        discount = adv_calc.synergies.cost_discount
-        if spell_cost == 0 then
-          log:debug("Non-legit spell for advanced formula in spellmaking menu! Going for plan B.")
-          spell_cost = total_effect_cost
-        end
-      end
-
-      -- weighing magic skills
-      for k=0, 5 do
-        magic_skill_table[k] = magic_skill_table[k] / total_effect_cost
-        log:trace(string.format("Coeficient for skill %d: %.2f", k, magic_skill_table[k]))
-      end
-
-      skill_for_spell = magic_skill_table[0] * tes3.mobilePlayer.alteration.current + magic_skill_table[1] * tes3.mobilePlayer.conjuration.current + magic_skill_table[2] * tes3.mobilePlayer.destruction.current +
-      magic_skill_table[3] * tes3.mobilePlayer.illusion.current + magic_skill_table[4] * tes3.mobilePlayer.mysticism.current + magic_skill_table[5] * tes3.mobilePlayer.restoration.current
-
-      spell_chance = calculate_cast_chance(spell_cost, tes3.mobilePlayer.willpower.current, tes3.mobilePlayer.luck.current, skill_for_spell)
-      log:trace(string.format("Spell info updated. Skill for spell: %d, Cost: %.2f, Chance: %.2f", skill_for_spell, spell_cost, spell_chance))
+    -- If spell is legit, re-calculate the cost. The created spell is priced by the same function.
+    local priced = SM.price_effects(effects)
+    if priced then
+      local spell_cost = priced.cost
+      local mobile = tes3.mobilePlayer
+      local skill_for_spell = SM.compute_skill(priced.skill_table, mobile)
+      local spell_chance = calculate_cast_chance(spell_cost, mobile.willpower.current, mobile.luck.current, skill_for_spell)
+      log:trace("Spell info updated. Skill for spell: %d, Cost: %.2f, Chance: %.2f", skill_for_spell, spell_cost, spell_chance)
 
       -- display discount
       local cost_text = tostring (math.round(spell_cost))
-      if discount > 0 then
-        cost_text = cost_text .. " (-" .. tostring(math.floor(discount*100)) .. "%)"
+      if priced.discount > 0 then
+        cost_text = cost_text .. " (-" .. tostring(math.floor(priced.discount*100)) .. "%)"
       end
 
       -- forward data for mods that use this value

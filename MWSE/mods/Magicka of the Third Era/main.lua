@@ -23,7 +23,9 @@
 -- Data written into the game's records, which the original mod kept in a plugin:
 --   data/magic_effects.lua       base costs, what spellmakers and enchanters offer, descriptions
 --   data/spells.lua              the spells the mod changes or adds
+--   data/enchantments.lua        the scroll enchantments the mod changes
 --   data/merchants.lua           spells and items NPCs gain or lose
+--   data/synergy_book.lua        the book on synergies and where it turns up
 
 local config = require("Magicka of the Third Era.config")
 local log = mwse.Logger.new{

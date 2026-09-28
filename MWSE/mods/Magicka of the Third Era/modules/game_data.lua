@@ -55,25 +55,40 @@ local function apply_magic_effects()
   end
 end
 
+--- Writes a spell's data into the game. A spell that the game does not have is created.
+---@param id string
+---@param data table
+---@return boolean created
+local function write_spell(id, data)
+  local spell = tes3.getObject(id)
+  local created = spell == nil
+  if not spell then
+    spell = tes3.createObject({ objectType = tes3.objectType.spell, id = id })
+  end
+  if spell.objectType ~= tes3.objectType.spell then
+    log:error("%s is in the game, but it is not a spell", id)
+    return false
+  end
+  ---@cast spell tes3spell
+  spell.name = data.name
+  -- Another mod may have made a power of it. The original's plugin made it a spell again.
+  spell.castType = tes3.spellType.spell
+  spell.magickaCost = data.cost
+  spell.autoCalc = data.auto_calc or false
+  spell.playerStart = data.start_spell or false
+  spell.alwaysSucceeds = data.always_succeeds or false
+  write_effects(id, spell.effects, data.effects)
+  return created
+end
+
 local function apply_spells()
   local created = 0
-  for id, data in pairs(spells) do
-    local spell = tes3.getObject(id)
-    if not spell then
-      spell = tes3.createObject({ objectType = tes3.objectType.spell, id = id })
-      created = created + 1
-    end
-    if spell.objectType == tes3.objectType.spell then
-      ---@cast spell tes3spell
-      spell.name = data.name
-      spell.magickaCost = data.cost
-      spell.autoCalc = data.auto_calc or false
-      spell.playerStart = data.start_spell or false
-      spell.alwaysSucceeds = data.always_succeeds or false
-      write_effects(id, spell.effects, data.effects)
-    else
-      log:error("%s is in the game, but it is not a spell", id)
-    end
+  for id, data in pairs(spells.changed) do
+    if write_spell(id, data) then created = created + 1 end
+  end
+  -- In the order of the list, which the game keeps for the spells it creates.
+  for _, data in ipairs(spells.added) do
+    if write_spell(data.id, data) then created = created + 1 end
   end
   log:debug("%d spells created", created)
 end
@@ -171,7 +186,10 @@ local function apply_book()
     })
   end
   ---@cast book tes3book
-  event.register(tes3.event.bookGetText, on_book_text, { filter = book })
+  local options = { filter = book }
+  if not event.isRegistered(tes3.event.bookGetText, on_book_text, options) then
+    event.register(tes3.event.bookGetText, on_book_text, options)
+  end
 
   for list_id, level in pairs(synergy_book.leveled_lists) do
     local list = tes3.getObject(list_id)
@@ -184,19 +202,39 @@ local function apply_book()
   end
 end
 
---- Writes everything. Runs once, when the game has loaded its plugins.
-function this.apply()
+--- Magic effects, spells and enchantments. Runs while the game still loads, at magicEffectsResolved.
+--- The game works out four things after that point, and has to find the mod's numbers when it does:
+--- the cost of auto-calculated spells, the cost and charge of auto-calculated enchantments,
+--- the value of auto-calculated potions, and the spells of auto-calculated NPCs.
+function this.apply_magic()
   apply_magic_effects()
   apply_spells()
   apply_enchantments()
-  apply_book()
-  apply_npcs()
-  log:info("game data applied")
+  log:info("magic effects, spells and enchantments written")
 end
 
---- What NPCs know and carry, again. Runs after a save has loaded, which may bring its own copy of an NPC.
-function this.apply_npcs()
+--- The book, and what NPCs know and carry. Runs at initialized. These follow links between
+--- records, which the game has not resolved yet at magicEffectsResolved. Reading them there crashes.
+function this.apply_world()
+  apply_book()
   apply_npcs()
+  log:info("book and NPCs written")
+end
+
+--- Everything at once, for a game that has loaded.
+function this.apply()
+  this.apply_magic()
+  this.apply_world()
+end
+
+--- Everything again. Runs after a save has loaded. A save holds its own copy of the spells
+--- the mod created and of the NPCs it changed, and that copy is what the game has after the load.
+function this.apply_after_load()
+  apply_magic_effects()
+  apply_spells()
+  apply_enchantments()
+  apply_npcs()
+  log:debug("game data written again after a load")
 end
 
 return this

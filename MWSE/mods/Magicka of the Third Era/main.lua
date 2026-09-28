@@ -133,7 +133,7 @@ local function initialized()
 
   event.register(tes3.event.loaded, load_storage)
   event.register(tes3.event.loaded, magicka_expanded_spells)
-  event.register(tes3.event.loaded, GameData.apply_npcs)
+  event.register(tes3.event.loaded, GameData.apply_after_load)
   -- Disable vanilla spellmaking value and spellprice mechanics, if mods enable it again via script, it won't be pretty.
   tes3.findGMST("fSpellMakingValueMult").value = 0
   tes3.findGMST("fSpellValueMult").value = 0
@@ -162,7 +162,8 @@ event.register("initialized", override_uiexpansion, { priority = 99 })
 event.register("initialized", initialized)
 -- The original's plugin had its records in the game before any Lua ran.
 -- The data takes the same place, ahead of the handlers of other mods.
-event.register("initialized", GameData.apply, { priority = 1000 })
+event.register("magicEffectsResolved", GameData.apply_magic, { priority = 1000 })
+event.register("initialized", GameData.apply_world, { priority = 1000 })
 
 -- MCM --
 

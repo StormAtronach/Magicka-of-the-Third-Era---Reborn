@@ -9,6 +9,7 @@
 --   modules/spell_manager.lua    spell cost computation, synergy detection, spell storage cache
 --   modules/known_effects.lua    tracks which spell effects the player has seen (UI highlight)
 --   modules/mcm.lua              Mod Configuration Menu
+--   effect_mechanics.lua         Calm, Frenzy, Rally and Demoralize work by the target's level
 --
 -- Data (static, read-only):
 --   data/premade_spells.lua      vanilla/DLC spell IDs (skips re-calculation)
@@ -28,8 +29,10 @@ local UI           = require("Magicka of the Third Era.modules.ui")
 local CastEvents   = require("Magicka of the Third Era.modules.cast_events")
 local SpellManager = require("Magicka of the Third Era.modules.spell_manager")
 
+-- Registers its own events.
+require("Magicka of the Third Era.effect_mechanics")
+
 --[[ (WIP, not yet active)
-local Effect_Mechanics = require("Magicka of the Third Era.effect_mechanics")
 local New_Effects      = require("Magicka of the Third Era.modules.new_effects")
 ]]
 

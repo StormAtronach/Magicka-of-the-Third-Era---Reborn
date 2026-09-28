@@ -31,7 +31,7 @@ local function on_effect(e)
           end
           if (effect_id == 51 and target_mobile.actorType == 1) or (effect_id == 52 and target_mobile.actorType == 0) then
             for _, cell in pairs(tes3.getActiveCells()) do
-              for actor in cell.actors do
+              for actor in cell:iterateReferences({ tes3.objectType.npc, tes3.objectType.creature }) do
                 local actor_mobile = actor.mobile
                 ---@cast actor_mobile tes3mobilePlayer|tes3mobileNPC|tes3mobileCreature
                 if actor_mobile and not actor.disabled then
@@ -41,9 +41,10 @@ local function on_effect(e)
                 end
               end
             end
-            local caster_mobile = e.caster.mobile
+            -- A trap has no caster.
+            local caster_mobile = e.caster and e.caster.mobile
             ---@cast caster_mobile tes3mobilePlayer|tes3mobileNPC|tes3mobileCreature
-            target_mobile:startCombat(caster_mobile)
+            if caster_mobile then target_mobile:startCombat(caster_mobile) end
             tes3.applyMagicSource{
               reference = target,
               name = "Frenzy",

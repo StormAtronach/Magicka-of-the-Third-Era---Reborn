@@ -473,11 +473,12 @@ function this.price_effects(effects)
 	else
 		log:trace("Multi-effect spell found! Trying advanced formula.")
 		local merged = this.spell_cost_advanced(effects, costs)
-		discount = merged.synergies.cost_discount
 		if merged.cost == 0 then
+			-- The sum of the effects is charged, without the discount of any synergy found.
 			log:trace("Non-legit spell for advanced formula! Going for plan B.")
 		else
 			cost = merged.cost
+			discount = merged.synergies.cost_discount
 		end
 	end
 	return { cost = cost, skill_table = pack_skill_table(school_costs, total_effect_cost), discount = discount }

@@ -153,6 +153,24 @@ local function is_birthsign_spell(spell)
   return false
 end
 
+--- Whether the spell succeeds or fails outright, without a roll: full determinism, or a determinist spell in mode 1.
+--- @param spell tes3spell
+--- @return boolean
+local function is_deterministic(spell)
+  return config.determinism_mode == 2 or is_determinist_spell(spell)
+end
+
+--- The raw chance, or 100 for a spell that always succeeds while the setting keeps that.
+--- @param chance number  Raw chance from calculate_cast_chance.
+--- @param spell tes3spell
+--- @return number
+local function base_chance(chance, spell)
+  if spell.alwaysSucceeds and not config.override_chances_alwaystosucceed then
+    return 100
+  end
+  return chance
+end
+
 --- Applies MOTTE's rules to a raw cast chance, in the order a cast applies them:
 --- always-succeeds spells, the NPC assist, determinism or the flat bonus, and hybrid mode.
 --- The result is what the spellCast handler hands to the engine, before other mods'
@@ -162,14 +180,12 @@ end
 --- @param is_player boolean
 --- @return number
 local function final_cast_chance(chance, spell, is_player)
-  if spell.alwaysSucceeds and not config.override_chances_alwaystosucceed then
-    chance = 100
-  end
+  chance = base_chance(chance, spell)
   -- Bandaid: if there are some absurdly strong spells that don't have "always succeeds", NPCs will suck at casting them.
   if chance <= 60 and not is_player and config.npc_assist then
     chance = 61
   end
-  if config.determinism_mode == 2 or is_determinist_spell(spell) then
+  if is_deterministic(spell) then
     chance = (chance > 60) and 100 or 0
   elseif config.determinism_mode ~= 3 and chance > 0 then
     -- Flat bonus only in modes 0 and 1; mode 3 uses the hybrid formula instead.
@@ -186,10 +202,7 @@ end
 --- @param spell tes3spell
 --- @return number
 local function mastery(chance, spell)
-  if spell.alwaysSucceeds and not config.override_chances_alwaystosucceed then
-    chance = 100
-  end
-  return math.min(math.floor(chance * 100 / 60), 100)
+  return math.min(math.floor(base_chance(chance, spell) * 100 / 60), 100)
 end
 
 --- Multiplier on a spell's stored cost from the caster's state: fatigue, sound, armor
@@ -228,7 +241,9 @@ return {
   get_armor_coefs       = get_armor_coefs,
   apply_hybrid_mode     = apply_hybrid_mode,
   is_determinist_spell  = is_determinist_spell,
+  is_deterministic      = is_deterministic,
   is_birthsign_spell    = is_birthsign_spell,
+  base_chance           = base_chance,
   final_cast_chance     = final_cast_chance,
   mastery               = mastery,
   cost_multiplier       = cost_multiplier,

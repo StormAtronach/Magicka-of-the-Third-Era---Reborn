@@ -199,7 +199,6 @@ local function spellmerchant_update(e)
     local spell_cost = 0
     local spell_chance = 0
     local skill_for_spell = 0
-    local determinist_spell = Formulas.is_determinist_spell(spell)
 
     local storage_result = SM.get_or_calculate(spell, premade_spells, true, tes3.mobilePlayer)
     if storage_result then
@@ -219,24 +218,19 @@ local function spellmerchant_update(e)
         gold_text = tostring (gold_costs[spell])
       end
       gold_costs_by_id[spell_id] = gold_costs[spell]
-      local chance_text = ""
-      if spell.alwaysSucceeds and not (config.override_chances_alwaystosucceed) then
-        spell_chance = 100
-        log:trace("Spell %s has 100 percent success rate.", spell_id)
-      end
-      if config.determinism_mode == 2 or determinist_spell then
-        chance_text =tostring(math.min(math.floor(spell_chance * 100 / 60), 100))
-      elseif config.determinism_mode == 3 then
-        spell_chance = Formulas.apply_hybrid_mode(spell_chance)
-        chance_text = tostring(spell_chance)
+      -- The same rules a cast applies.
+      local deterministic = Formulas.is_deterministic(spell)
+      local chance_text
+      if deterministic then
+        chance_text = tostring(Formulas.mastery(spell_chance, spell))
+        -- Mastery stops at 100, so sorting and the uncastable colour use the chance behind it.
+        spell_chance = Formulas.base_chance(spell_chance, spell)
       else
-        if spell_chance > 0 then
-          spell_chance = math.min(spell_chance + config.flat_chance_bonus, 100)
-        end
+        spell_chance = Formulas.final_cast_chance(spell_chance, spell, true)
         chance_text = tostring(math.floor(spell_chance))
       end
 
-      local chance_label = (config.determinism_mode == 2 or determinist_spell) and "Mastery" or "Cast Chance"
+      local chance_label = deterministic and "Mastery" or "Cast Chance"
       names[i].text = tostring(spell.name) .. " | " .. gold_text .. " Gold | " .. cost_text .. " Base Cost | " .. chance_text .. " " .. chance_label
       if not (config.ui_extended_spell_merchant) then
         service_text.base_texts[spell] = names[i].text
@@ -260,11 +254,7 @@ local function spellmerchant_update(e)
       service_school[spell] = max_school.school
       service_text.gold_texts[spell] = gold_text .. " Gold"
       service_text.cost_texts[spell] = cost_text .. " Base Cost"
-      if config.determinism_mode == 2 or determinist_spell then
-        service_text.chance_texts[spell] = chance_text .. " Mastery"
-      else
-        service_text.chance_texts[spell] = chance_text .. " Cast Chance"
-      end
+      service_text.chance_texts[spell] = chance_text .. " " .. chance_label
 
     end
   end
@@ -598,20 +588,19 @@ local function refresh_magic_menu(e)
 
   for i = 1, #names do
     local spell = names[i]:getPropertyObject("MagicMenu_Spell")
-    local cost, raw_chance
     if Formulas.is_birthsign_spell(spell) then
       set_text(costs[i], tostring(vanilla_cost(spell, ctx)))
       set_text(chances[i], "/" .. tostring(vanilla_chance(spell, ctx)))
     else
-      cost, raw_chance = stored_cost_and_chance(spell, ctx)
-    end
-    if cost then
-      set_text(costs[i], tostring(applied_cost(cost, ctx)))
-      -- Deterministic spells show mastery: how close the spell is to always succeeding.
-      if config.determinism_mode == 2 or Formulas.is_determinist_spell(spell) then
-        set_text(chances[i], "/" .. tostring(Formulas.mastery(raw_chance, spell)))
-      else
-        set_text(chances[i], "/" .. tostring(math.floor(applied_chance(spell, raw_chance, ctx))))
+      local cost, raw_chance = stored_cost_and_chance(spell, ctx)
+      if cost and raw_chance then
+        set_text(costs[i], tostring(applied_cost(cost, ctx)))
+        -- Deterministic spells show mastery: how close the spell is to always succeeding.
+        if Formulas.is_deterministic(spell) then
+          set_text(chances[i], "/" .. tostring(Formulas.mastery(raw_chance, spell)))
+        else
+          set_text(chances[i], "/" .. tostring(math.floor(applied_chance(spell, raw_chance, ctx))))
+        end
       end
     end
   end

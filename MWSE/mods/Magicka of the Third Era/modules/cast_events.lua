@@ -99,6 +99,21 @@ local function spell_cost_manipulation(e)
   log:trace("Resulting cost for spell: %.2f. Cost calculation stage is finished.", e.cost)
 end
 
+-- The schools in the order of a stored skill table, with the skill each one trains
+-- and the setting that scales its experience.
+local school_training = {
+  { skill = "alteration",  rate = "leveling_rate_alteration" },
+  { skill = "conjuration", rate = "leveling_rate_conjuration" },
+  { skill = "destruction", rate = "leveling_rate_destruction" },
+  { skill = "illusion",    rate = "leveling_rate_illusion" },
+  { skill = "mysticism",   rate = "leveling_rate_mysticism" },
+  { skill = "restoration", rate = "leveling_rate_restoration" },
+}
+-- Spell cost that gives one point of experience, before the leveling rates apply.
+local EXPERIENCE_DIVIDER = 7.5
+-- A skill at or above this only gains experience with Uncapped Leveling.
+local SKILL_CAP = 100
+
 ---@param e spellCastedEventData
 local function exp_gain(e)
   if (not tes3.player) or (e.caster ~= tes3.player) then return end
@@ -111,41 +126,21 @@ local function exp_gain(e)
 
   local spell_id = e.source.id
   local school = tes3.magicSchoolSkill[e.expGainSchool]
-  local magic_skill_table = {}
-  local spell_cost = 0
-  -- Base divider for costs
-  local base_const = 7.5
   -- Disable vanilla exp gain
   e.expGainSchool = tes3.magicSchool.none
-  if tes3.player.data.motte_spell_storage[spell_id] then
+  local spell_data = tes3.player.data.motte_spell_storage[spell_id]
+  if spell_data then
     -- if spell is in the DB, where it should be.
-    local spell_data = tes3.player.data.motte_spell_storage[spell_id]
-    magic_skill_table = spell_data.skill_table
-    spell_cost = spell_data.cost
-    -- level only if base skill < 100
-    if caster.alteration.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(11, spell_cost * magic_skill_table[1] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_alteration / 100)
-    end
-    if caster.conjuration.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(13, spell_cost * magic_skill_table[2] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_conjuration / 100)
-    end
-    if caster.destruction.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(10, spell_cost * magic_skill_table[3] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_destruction / 100)
-    end
-    if caster.illusion.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(12, spell_cost * magic_skill_table[4] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_illusion / 100)
-    end
-    if caster.mysticism.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(14, spell_cost * magic_skill_table[5] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_mysticism / 100)
-    end
-    if caster.restoration.base < 100 or config.leveling_uncapped then
-      caster:exerciseSkill(15, spell_cost * magic_skill_table[6] / base_const * config.leveling_rate_global / 100 * config.leveling_rate_restoration / 100)
+    for i, training in ipairs(school_training) do
+      if caster[training.skill].base < SKILL_CAP or config.leveling_uncapped then
+        caster:exerciseSkill(tes3.skill[training.skill],
+          spell_data.cost * spell_data.skill_table[i] / EXPERIENCE_DIVIDER * config.leveling_rate_global / 100 * config[training.rate] / 100)
+      end
     end
   else
     -- If spell is not in the DB for some reason.
-    spell_cost = e.source.magickaCost
-    log:warn(string.format("Spell %s not found in database! Using simplified approach.", spell_id))
-    caster:exerciseSkill(school, spell_cost / base_const * config.leveling_rate_global / 100)
+    log:warn("Spell %s not found in database! Using simplified approach.", spell_id)
+    caster:exerciseSkill(school, e.source.magickaCost / EXPERIENCE_DIVIDER * config.leveling_rate_global / 100)
   end
 end
 

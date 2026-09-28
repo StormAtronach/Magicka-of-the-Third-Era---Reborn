@@ -12,7 +12,8 @@ local log = mwse.Logger.new{ modName = "Magicka of the Third Era", logLevel = co
 
 local calculate_cast_chance   = Formulas.calculate_cast_chance
 
-local spellmaker_cost  = 0
+-- Gold the spellmaker asks for the spell on the table. The menu shows it, the buy button checks it and the payment takes it.
+local spellmaker_price = 0
 local self_spellmaking = false
 
 -- Assigning text forces the element to re-render, so skip it when nothing changed.
@@ -87,6 +88,9 @@ local function spellmaker_update(e)
       -- forward data for mods that use this value
       e.spellPointCost = math.round(spell_cost)
 
+      local price = math.floor(spell_cost * config.economy_spellmaker_mult * disp_factor)
+      spellmaker_price = price
+
       --Needs a small delay since vanilla gets calculated right after this event, and we need to overwrite vanilla
       timer.start{type = timer.real, duration = 0.07, callback = function()
         -- The menu can close before the timer fires.
@@ -95,7 +99,7 @@ local function spellmaker_update(e)
         local label_texts = {
           MenuSpellmaking_SpellPointCost = cost_text,
           MenuSpellmaking_SpellChance = tostring (math.round(spell_chance)),
-          MenuSpellmaking_PriceValueLabel = tostring (math.floor(spell_cost * config.economy_spellmaker_mult * disp_factor)),
+          MenuSpellmaking_PriceValueLabel = tostring (price),
         }
         for id, text in pairs(label_texts) do
           local label = open_menu:findChild(id)
@@ -106,9 +110,6 @@ local function spellmaker_update(e)
           end
         end
         end}
-
-      -- save for cost checker, use disp_factor here
-      spellmaker_cost = math.round(spell_cost * disp_factor)
 
     end
   end
@@ -130,7 +131,7 @@ local function spellmaking_block(_)
     if not buyButton then return end
     buyButton:registerBefore(tes3.uiEvent.mouseClick,
         function(_)
-          if gold_amount < math.floor(spellmaker_cost * config.economy_spellmaker_mult) then
+          if gold_amount < spellmaker_price then
             tes3.messageBox("You don't have enough gold to create this spell")
             return false -- this will prevent the regular mouseclick event from being run
           end
@@ -142,7 +143,7 @@ end
 ---@param _ spellCreatedEventData
 local function spellmaking_payment(_)
   if not self_spellmaking and tes3.player then
-    tes3.removeItem({reference = tes3.player, item = "gold_001", count = math.floor(spellmaker_cost * config.economy_spellmaker_mult)})
+    tes3.removeItem({reference = tes3.player, item = "gold_001", count = spellmaker_price})
   end
 end
 

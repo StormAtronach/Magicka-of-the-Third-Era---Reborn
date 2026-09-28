@@ -24,7 +24,8 @@ spell_table[8] = {coef = 0.2, mag_pow = 0.7, dur_pow = -0.65, dur_min = 20, igno
 -- Jump
 spell_table[9] = {coef = 0.45, mag_pow = 0.75, dur_pow = -0.6, area_pow = 0.1}
 -- Levitate
-spell_table[10] = {coef = 0.13, mag_pow = 0.68, dur_pow = -0.25, const_offset = 6, mag_offset = 10}
+-- Cast on others it is a disable, so it costs more. 1 pt for 20s costs what the original's linear formula charged: 15 on touch, 16.4 on target.
+spell_table[10] = {coef = 0.13, mag_pow = 0.68, dur_pow = -0.25, const_offset = 6, mag_offset = 10, range1_coef_mod = 2.33, range2_coef_mod = 2.7}
 -- Slowfall
 spell_table[11] = {coef = 0.4, mag_pow = 0.5, dur_pow = 0, area_pow = 0.1, const_offset = 7}
 -- Lock

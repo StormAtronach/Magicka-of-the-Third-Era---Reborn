@@ -12,7 +12,7 @@ local function on_effect(e)
     local target_level = e.target.object.level
     local spell = e.source
     local index
-    for i, effect_id in ipairs(level_based_illusion_effects) do
+    for _, effect_id in ipairs(level_based_illusion_effects) do
         index = spell:getFirstIndexOfEffect(effect_id) + 1
         if index > 0 then
             if spell.effects[index].min < 9999 then

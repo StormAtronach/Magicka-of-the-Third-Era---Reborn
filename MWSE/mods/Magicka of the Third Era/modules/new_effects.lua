@@ -39,7 +39,7 @@ end
 
 function this.check_blood_magic(spell)
     local blood_magic = 0
-    for i, effect in ipairs(spell.effects) do
+    for _, effect in ipairs(spell.effects) do
        if effect.id == 3401 then
             blood_magic = blood_magic + effect.max
        end

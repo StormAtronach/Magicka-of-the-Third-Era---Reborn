@@ -202,6 +202,15 @@ local function apply_book()
   end
 end
 
+--- The parts of the write by name, for a profiler that times them one by one.
+this.parts = {
+  magic_effects = apply_magic_effects,
+  spells = apply_spells,
+  enchantments = apply_enchantments,
+  book = apply_book,
+  npcs = apply_npcs,
+}
+
 --- Magic effects, spells and enchantments. Runs while the game still loads, at magicEffectsResolved.
 --- The game works out four things after that point, and has to find the mod's numbers when it does:
 --- the cost of auto-calculated spells, the cost and charge of auto-calculated enchantments,

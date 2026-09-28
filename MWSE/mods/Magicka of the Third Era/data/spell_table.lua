@@ -24,8 +24,10 @@ spell_table[8] = {coef = 0.2, mag_pow = 0.7, dur_pow = -0.65, dur_min = 20, igno
 -- Jump
 spell_table[9] = {coef = 0.45, mag_pow = 0.75, dur_pow = -0.6, area_pow = 0.1}
 -- Levitate
--- Cast on others it is a disable, so it costs more. 1 pt for 20s costs what the original's linear formula charged: 15 on touch, 16.4 on target.
-spell_table[10] = {coef = 0.13, mag_pow = 0.68, dur_pow = -0.25, const_offset = 6, mag_offset = 10, range1_coef_mod = 2.33, range2_coef_mod = 2.7}
+-- Cast on others it is a disable that gets stronger with duration, not with magnitude.
+-- On touch and target the price grows linearly with duration (0.68 + 0.32 = 1), like the original's linear formula.
+-- At 1 pt it stays within 3 of the original's price between 10 and 60 seconds.
+spell_table[10] = {coef = 0.13, mag_pow = 0.68, dur_pow = -0.25, const_offset = 6, mag_offset = 10, range1_coef_mod = 0.52, range1_dur = 0.32, range2_coef_mod = 0.59, range2_dur = 0.32}
 -- Slowfall
 spell_table[11] = {coef = 0.4, mag_pow = 0.5, dur_pow = 0, area_pow = 0.1, const_offset = 7}
 -- Lock

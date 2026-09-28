@@ -13,7 +13,7 @@
 -- These can stack if you hit many synergies with one spell, but they will get less impactful by themselves.
 -- If there are several effects that apply the condition (e.g. fire damage for 5 secs and fire damage for 10 secs in example below), lowest one takes priority.
 -- It's very unlikely to happen and not profitable to player to build spells this way, but just so you know.
--- Effects that get skipped in advanced formula (const_cost, targeted levitation and such) won't work for synergies
+-- Effects that get skipped in advanced formula (const_cost and such) won't work for synergies
 
 local synergy_table = {}
 

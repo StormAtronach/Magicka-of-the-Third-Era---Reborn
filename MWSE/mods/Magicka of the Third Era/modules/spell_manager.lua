@@ -346,16 +346,6 @@ this.effect_cost_advanced = function(effect)
 				              ((effect.radius + 1) ^ area_pow) + constant_offset
 			end
 		end
-		-- Special snowflake - targeted levitation with low magnitude
-		-- Boring linear formula for now (10s = 10, 20s = 17)
-		if effect_id == 10 and effect.rangeType ~= 0 and effect.min < 30 then
-			log:trace(string.format("Found targeted levitation with effect min of %d", effect.min))
-			if effect.rangeType == 1 then
-				effect_cost = 0.65 * effect.duration * ((effect.radius + 1) ^ 0.1) + 2
-			else
-				effect_cost = 0.72 * effect.duration * ((effect.radius + 1) ^ 0.1) + 2
-			end
-		end
 		log:trace(string.format("Effect ID %d calculated successfully. Costs: %.2f.", effect_id, effect_cost))
 	end
 	return effect_cost
@@ -491,10 +481,9 @@ this.spell_cost_advanced = function(effect_array, cost_array)
 			end
 			-- Skip if it has overrides (abusable / non-mergeable skill). Returns 0 and therefore we use sum of effect costs for the price instead.
 			-- for const_cost, have a 'modifier effect check!!!'
-			if (t.range0_const_cost and non_modifier_effect_array[i].rangeType == 0) or t.const_cost or
-			(non_modifier_effect_array[i].id == 10 and non_modifier_effect_array[i].rangeType ~= 0) then
+			if (t.range0_const_cost and non_modifier_effect_array[i].rangeType == 0) or t.const_cost then
 				log:trace(
-				"This spell is not valid for the advanced formula (constant cost, targeted levitation, and such). Aborting calculations, using sum of effects instead.")
+				"This spell is not valid for the advanced formula (constant cost). Aborting calculations, using sum of effects instead.")
 				return { cost = 0, synergies = synergy_bonuses }
 			end
 			-- Calculate strength and put it in array.

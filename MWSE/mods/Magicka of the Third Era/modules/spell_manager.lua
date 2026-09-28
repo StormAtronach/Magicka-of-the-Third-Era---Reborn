@@ -652,7 +652,7 @@ function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobi
 			tes3.player.data.motte_spell_storage[spell_id] = nil
 		else
 			local spell_cost = spell_data.cost
-			log:trace(string.format("Spell %s found in storage. Cost: %.2f.", spell, spell_cost))
+			log:trace("Spell %s found in storage. Cost: %.2f.", spell_id, spell_cost)
 			local skill_for_spell = mobile and this.compute_skill(skill_table, mobile) or 0
 			return { cost = spell_cost, skill_for_spell = skill_for_spell, skill_table = skill_table }
 		end

@@ -1,7 +1,16 @@
 -- modules/formulas.lua
--- Pure stateless computation: cast chance formula and armor coefficient breakdown.
+-- Pure stateless computation: cast chance formula, the rules applied on top of it,
+-- spell cost multipliers and armor coefficient breakdown.
+-- The cast handlers and the UI both use these, so what the UI shows is what a cast applies.
 
 local config = require("Magicka of the Third Era.config")
+local determinist_effect_table = require("Magicka of the Third Era.data.determinist_effects")
+
+-- Set form of determinist_effect_table for constant-time lookups.
+local determinist_effect_set = {}
+for _, effect_id in ipairs(determinist_effect_table) do
+  determinist_effect_set[effect_id] = true
+end
 
 -- Thanks to nimble armor mod for this, using its values for now
 local armorParts = {
@@ -115,8 +124,111 @@ local function apply_hybrid_mode(chance)
   end
 end
 
+--- Whether semi-determinism mode (1) treats this spell as deterministic.
+--- @param spell tes3spell
+--- @return boolean
+local function is_determinist_spell(spell)
+  if config.determinism_mode ~= 1 then return false end
+  if spell.alwaysSucceeds and not config.override_costs_alwaystosucceed then return false end
+  for _, effect in ipairs(spell.effects) do
+    if effect.object and determinist_effect_set[effect.id] then
+      return true
+    end
+  end
+  return false
+end
+
+--- Whether the spell comes from the player's birthsign and the setting keeps those at vanilla values.
+--- Such spells are left to the engine: no cost or chance recalculation.
+--- @param spell tes3spell
+--- @return boolean
+local function is_birthsign_spell(spell)
+  if not config.skip_birthsign_spells then return false end
+  local birthsign = tes3.mobilePlayer and tes3.mobilePlayer.birthsign
+  if not birthsign then return false end
+  for bs_spell in tes3.iterate(birthsign.spells.iterator) do
+    if bs_spell.id == spell.id then return true end
+  end
+  return false
+end
+
+--- Applies MOTTE's rules to a raw cast chance, in the order a cast applies them:
+--- always-succeeds spells, the NPC assist, determinism or the flat bonus, and hybrid mode.
+--- The result is what the spellCast handler hands to the engine, before other mods'
+--- handlers (e.g. Tamriel_Data's Fortify Casting) run.
+--- @param chance number  Raw chance from calculate_cast_chance.
+--- @param spell tes3spell
+--- @param is_player boolean
+--- @return number
+local function final_cast_chance(chance, spell, is_player)
+  if spell.alwaysSucceeds and not config.override_chances_alwaystosucceed then
+    chance = 100
+  end
+  -- Bandaid: if there are some absurdly strong spells that don't have "always succeeds", NPCs will suck at casting them.
+  if chance <= 60 and not is_player and config.npc_assist then
+    chance = 61
+  end
+  if config.determinism_mode == 2 or is_determinist_spell(spell) then
+    chance = (chance > 60) and 100 or 0
+  elseif config.determinism_mode ~= 3 and chance > 0 then
+    -- Flat bonus only in modes 0 and 1; mode 3 uses the hybrid formula instead.
+    chance = math.min(chance + config.flat_chance_bonus, 100)
+  end
+  if config.determinism_mode == 3 then
+    chance = apply_hybrid_mode(chance)
+  end
+  return chance
+end
+
+--- Mastery shown for deterministic spells: how close the raw chance is to the 60 needed to succeed.
+--- @param chance number  Raw chance from calculate_cast_chance.
+--- @param spell tes3spell
+--- @return number
+local function mastery(chance, spell)
+  if spell.alwaysSucceeds and not config.override_chances_alwaystosucceed then
+    chance = 100
+  end
+  return math.min(math.floor(chance * 100 / 60), 100)
+end
+
+--- Multiplier on a spell's stored cost from the caster's state: fatigue, sound, armor
+--- (NPC-type casters, which includes the player) and overflowing magicka (player only).
+--- None of these affect the cast chance.
+--- @param mobile tes3mobileNPC|tes3mobilePlayer|tes3mobileCreature
+--- @param wears_armor boolean  Only NPC-type casters have armor skills.
+--- @param is_player boolean
+--- @return number
+local function cost_multiplier(mobile, wears_armor, is_player)
+  -- Fatigue increases costs up to 50% more (by default, configurable).
+  local fatigue_normalized = math.min(1, mobile.fatigue.normalized)
+  -- Sound increases costs by 5% per magnitude.
+  local sound_factor = 0
+  if mobile.sound < 0 then
+    sound_factor = mobile.sound * -0.05
+  end
+  -- Armor increases costs up to 100% more (by default, configurable).
+  local armor_factor = 0
+  if wears_armor and config.armor_penalty_perc_max > 0 then
+    local armor_table = get_armor_coefs(mobile)
+    armor_factor = armor_table.light * math.max(config.armor_penalty_cap_light - mobile.lightArmor.current, 0) / config.armor_penalty_cap_light +
+    armor_table.medium * math.max(config.armor_penalty_cap_medium - mobile.mediumArmor.current, 0) / config.armor_penalty_cap_medium +
+    armor_table.heavy * math.max(config.armor_penalty_cap_heavy - mobile.heavyArmor.current, 0) / config.armor_penalty_cap_heavy
+    armor_factor = armor_factor * (config.armor_penalty_perc_max / 100)
+  end
+  local mult = 1 + (config.fatigue_penalty_mult / 100) * (1 - fatigue_normalized) + sound_factor + armor_factor
+  if is_player and mobile.magicka.current > 100 then
+    mult = mult * (1 + (mobile.magicka.current - 100) * config.overflowing_magicka_rate / 10000)
+  end
+  return mult
+end
+
 return {
   calculate_cast_chance = calculate_cast_chance,
   get_armor_coefs       = get_armor_coefs,
   apply_hybrid_mode     = apply_hybrid_mode,
+  is_determinist_spell  = is_determinist_spell,
+  is_birthsign_spell    = is_birthsign_spell,
+  final_cast_chance     = final_cast_chance,
+  mastery               = mastery,
+  cost_multiplier       = cost_multiplier,
 }

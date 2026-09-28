@@ -8,17 +8,22 @@ local Formulas      = require("Magicka of the Third Era.modules.formulas")
 
 local premade_spells           = require("Magicka of the Third Era.data.premade_spells")
 local custom_price_spells      = require("Magicka of the Third Era.data.custom_price_spells")
-local determinist_effect_table = require("Magicka of the Third Era.data.determinist_effects")
 
 local log = mwse.Logger.new{ modName = "Magicka of the Third Era", logLevel = config.log_level }
 
 local effect_cost_advanced    = SM.effect_cost_advanced
 local spell_cost_advanced     = SM.spell_cost_advanced
 local calculate_cast_chance   = Formulas.calculate_cast_chance
-local get_armor_coefs         = Formulas.get_armor_coefs
 
 local spellmaker_cost  = 0
 local self_spellmaking = false
+
+-- Assigning text forces the element to re-render, so skip it when nothing changed.
+local function set_text(element, text)
+  if element.text ~= text then
+    element.text = text
+  end
+end
 
 -------------------------------------------------------------------------------
 
@@ -219,20 +224,7 @@ local function spellmerchant_update(e)
     local spell_cost = 0
     local spell_chance = 0
     local skill_for_spell = 0
-    local determinist_spell = false
-
-    if (config.override_costs_alwaystosucceed or not (spell.alwaysSucceeds)) and config.determinism_mode == 1 then
-      for j, effect in ipairs(spell.effects) do
-        if effect.object then
-          for _, effect_id in ipairs(determinist_effect_table) do
-            if effect.id == effect_id then
-              determinist_spell = true
-              log:trace(string.format("Found a determinist effect: %s", effect.id))
-            end
-          end
-        end
-      end
-    end
+    local determinist_spell = Formulas.is_determinist_spell(spell)
 
     local storage_result = SM.get_or_calculate(spell, premade_spells, true, tes3.mobilePlayer)
     if storage_result then
@@ -241,7 +233,7 @@ local function spellmerchant_update(e)
     end
 
     if spell_cost > 0 then
-      log:trace(string.format("Spell processed. ID: %s. Your skill for this spell: %d", spell.id, skill_for_spell))
+      log:trace("Spell processed. ID: %s. Your skill for this spell: %d", spell_id, skill_for_spell)
       spell_chance = calculate_cast_chance(spell_cost, tes3.mobilePlayer.willpower.current, tes3.mobilePlayer.luck.current, skill_for_spell)
 
       local cost_text = tostring (math.floor(spell_cost))
@@ -254,10 +246,10 @@ local function spellmerchant_update(e)
       local chance_text = ""
       if spell.alwaysSucceeds and not (config.override_chances_alwaystosucceed) then
         spell_chance = 100
-        log:trace(string.format("Spell %s has 100 percent success rate.", spell.id))
+        log:trace("Spell %s has 100 percent success rate.", spell_id)
       end
       if config.determinism_mode == 2 or determinist_spell then
-        chance_text = tostring(math.min(math.floor(spell_chance * 100 / 60), 100))
+        chance_text =tostring(math.min(math.floor(spell_chance * 100 / 60), 100))
       elseif config.determinism_mode == 3 then
         spell_chance = Formulas.apply_hybrid_mode(spell_chance)
         chance_text = tostring(spell_chance)
@@ -471,93 +463,241 @@ local function spellmerchant_update(e)
   --end)
 end
 
--- Update the spell selection UI. Spell costs in UI will be calculated once per spell. They'll be also used whenever player casts these spells.
+-- Tamriel_Data's Fortify Casting and Blood Magic, when it is installed. Its cast handlers
+-- run after MOTTE's (see cast_events.lua): Fortify Casting adds its magnitude to MOTTE's
+-- chance and Blood Magic halves MOTTE's cost, so the UI applies them the same way.
+---@param mobile tes3mobilePlayer
+---@return number fortify  Summed magnitude of Fortify Casting.
+---@return boolean blood_magic
+---@return boolean active  Either effect is present. Tamriel_Data writes the chance column
+---                        whenever one is, even before its magnitude is resolved.
+local function td_casting_effects(mobile)
+  local fortify, fortify_count, blood_magic = 0, 0, false
+  local fortify_id = tes3.effect.T_restoration_FortifyCasting
+  if fortify_id then
+    local effects = mobile:getActiveMagicEffects({ effect = fortify_id })
+    fortify_count = #effects
+    for _, active in pairs(effects) do
+      fortify = fortify + active.magnitude
+    end
+  end
+  local blood_magic_id = tes3.effect.T_mysticism_BloodMagic
+  if blood_magic_id then
+    blood_magic = #mobile:getActiveMagicEffects({ effect = blood_magic_id }) > 0
+  end
+  return fortify, blood_magic, fortify_count > 0 or blood_magic
+end
+
+--- The player's state a spell's chance depends on, read once per update.
+---@param mobile tes3mobilePlayer
+local function chance_context(mobile)
+  local fortify, blood_magic, td_active = td_casting_effects(mobile)
+  return {
+    mobile = mobile,
+    storage = tes3.player.data.motte_spell_storage,
+    willpower = mobile.willpower.current,
+    luck = mobile.luck.current,
+    skills = {
+      mobile.alteration.current, mobile.conjuration.current, mobile.destruction.current,
+      mobile.illusion.current, mobile.mysticism.current, mobile.restoration.current,
+    },
+    fortify = fortify,
+    blood_magic = blood_magic,
+    td_active = td_active,
+  }
+end
+
+--- The stored cost and the raw chance of a spell for the player, or nil if MOTTE has no cost for it.
+---@param spell tes3spell
+---@return number? cost
+---@return number? raw_chance
+local function stored_cost_and_chance(spell, ctx)
+  local cost, skill_for_spell
+  local data = ctx.storage[spell.id]
+  local t = data and data.skill_table
+  if t and t[1] and t[2] and t[3] and t[4] and t[5] and t[6] then
+    local s = ctx.skills
+    cost = data.cost
+    skill_for_spell = t[1] * s[1] + t[2] * s[2] + t[3] * s[3] + t[4] * s[4] + t[5] * s[5] + t[6] * s[6]
+  else
+    -- Not stored yet (or corrupt): calculate and store it.
+    local result = SM.get_or_calculate(spell, premade_spells, true, ctx.mobile)
+    if not result then return nil end
+    cost, skill_for_spell = result.cost, result.skill_for_spell
+  end
+  if cost <= 0 then return nil end
+  return cost, calculate_cast_chance(cost, ctx.willpower, ctx.luck, skill_for_spell)
+end
+
+--- The chance a cast will roll: MOTTE's rules, then Tamriel_Data's Fortify Casting.
+---@param spell tes3spell
+---@param raw_chance number
+local function applied_chance(spell, raw_chance, ctx)
+  local chance = Formulas.final_cast_chance(raw_chance, spell, true) + ctx.fortify
+  return math.max(0, math.min(chance, 100))
+end
+
+--- The magicka a cast will take: rounded like the cast handler, then halved by Blood Magic.
+---@param cost number  Stored cost.
+local function applied_cost(cost, ctx)
+  local applied = math.round(cost * ctx.cost_mult)
+  if ctx.blood_magic then
+    applied = math.floor(applied / 2)
+  end
+  return applied
+end
+
+-- Birthsign spells keep their vanilla cost and chance when the setting is on: the cast
+-- handlers leave them to the engine, and Tamriel_Data's effects still apply on top.
+---@param spell tes3spell
+local function vanilla_cost(spell, ctx)
+  local cost = spell.magickaCost
+  if ctx.blood_magic then
+    cost = math.floor(cost / 2)
+  end
+  return cost
+end
+
+---@param spell tes3spell
+local function vanilla_chance(spell, ctx)
+  local chance = spell:calculateCastChance({ caster = tes3.player, checkMagicka = false }) + ctx.fortify
+  return math.floor(math.max(0, math.min(chance, 100)))
+end
+
+-------------------------------------------------------------------------------
+-- Magic menu: cost and chance columns
+-------------------------------------------------------------------------------
+
+-- The menu updates on every scroll step, so a full refresh (every spell) only runs
+-- when something the numbers depend on changed. Scrolling changes none of it.
+
+-- Set on the first and last row once refreshed; the engine drops it when it recreates the rows.
+local PROP_Refreshed = "MOTTE:MagicMenu:Refreshed"
+local last_refresh = { key = nil, first = nil, last = nil }
+
+-- The cost and chance text of a row, to notice other code rewriting them.
+local function row_text(costs, chances, i)
+  return costs[i].text .. chances[i].text
+end
+
+--- Everything the shown numbers depend on besides the stored spell data.
+local function refresh_key(ctx)
+  local s = ctx.skills
+  return table.concat({
+    ctx.willpower, ctx.luck, s[1], s[2], s[3], s[4], s[5], s[6], ctx.cost_mult,
+    ctx.fortify, tostring(ctx.blood_magic),
+    config.determinism_mode, config.flat_chance_bonus, config.chance_formula, config.willpower_softcap,
+    tostring(config.override_chances_alwaystosucceed), tostring(config.override_costs_alwaystosucceed),
+    config.sa_cut_in_value, config.sa_fulcrum_value, config.sa_cut_off_value,
+    config.sa_base_probability, config.sa_chance_step, tostring(config.skip_birthsign_spells),
+  }, "|")
+end
+
+--- True if these are the rows last refreshed and they still show what was written.
+local function rows_unchanged(names, costs, chances)
+  local n = #names
+  if n == 0 or n ~= #costs or n ~= #chances then return false end
+  if not (names[1]:getPropertyBool(PROP_Refreshed) and names[n]:getPropertyBool(PROP_Refreshed)) then
+    return false
+  end
+  return row_text(costs, chances, 1) == last_refresh.first and row_text(costs, chances, n) == last_refresh.last
+end
+
+---@param e tes3uiEventData
+local function refresh_magic_menu(e)
+  local mobile = tes3.mobilePlayer
+  if not mobile then return end
+  local menu = e.source
+  local names = menu:findChild("MagicMenu_spell_names").children
+  local costs = menu:findChild("MagicMenu_spell_costs").children
+  local chances = menu:findChild("MagicMenu_spell_percents").children
+
+  local ctx = chance_context(mobile)
+  ctx.cost_mult = Formulas.cost_multiplier(mobile, tes3.player.object.objectType == tes3.objectType.npc, true)
+  local key = refresh_key(ctx)
+  -- Tamriel_Data rewrites the chance column on every update while its effects are active.
+  if not ctx.td_active and key == last_refresh.key and rows_unchanged(names, costs, chances) then
+    return
+  end
+
+  local cost_title = menu:findChild("MagicMenu_spell_cost_title")
+  if cost_title then
+    set_text(cost_title, (config.determinism_mode == 2) and "Cost/Mastery" or "Cost/Chance")
+  end
+
+  for i = 1, #names do
+    local spell = names[i]:getPropertyObject("MagicMenu_Spell")
+    local cost, raw_chance
+    if Formulas.is_birthsign_spell(spell) then
+      set_text(costs[i], tostring(vanilla_cost(spell, ctx)))
+      set_text(chances[i], "/" .. tostring(vanilla_chance(spell, ctx)))
+    else
+      cost, raw_chance = stored_cost_and_chance(spell, ctx)
+    end
+    if cost then
+      set_text(costs[i], tostring(applied_cost(cost, ctx)))
+      -- Deterministic spells show mastery: how close the spell is to always succeeding.
+      if config.determinism_mode == 2 or Formulas.is_determinist_spell(spell) then
+        set_text(chances[i], "/" .. tostring(Formulas.mastery(raw_chance, spell)))
+      else
+        set_text(chances[i], "/" .. tostring(math.floor(applied_chance(spell, raw_chance, ctx))))
+      end
+    end
+  end
+
+  local n = #names
+  if n > 0 then
+    names[1]:setPropertyBool(PROP_Refreshed, true)
+    names[n]:setPropertyBool(PROP_Refreshed, true)
+    last_refresh.first, last_refresh.last = row_text(costs, chances, 1), row_text(costs, chances, n)
+  end
+  last_refresh.key = key
+end
+
+-- Runs after other mods' handlers (Tamriel_Data writes the chance column too), so MOTTE's numbers are the ones shown.
+local UI_PRIORITY = -10
+
 ---@param e uiActivatedEventData
 local function magic_menu_update(e)
-    if not e.newlyCreated then return end
+  if not e.newlyCreated then return end
+  e.element:registerAfter(tes3.uiEvent.preUpdate, refresh_magic_menu, UI_PRIORITY)
+end
 
-    e.element:registerAfter("preUpdate", function()
-        local names = e.element:findChild("MagicMenu_spell_names").children
-        local costs = e.element:findChild("MagicMenu_spell_costs").children
-        local chances = e.element:findChild("MagicMenu_spell_percents").children
-        local cost_title = e.element:findChild("MagicMenu_spell_cost_title")
-        if cost_title then
-          cost_title.text = (config.determinism_mode == 2) and "Cost/Mastery" or "Cost/Chance"
-        end
-        for i=1, #names do
-            local spell = names[i]:getPropertyObject("MagicMenu_Spell")
-            local spell_cost = 0
-            local spell_chance = 0
-            local skill_for_spell = 0
-            local fatigue_normalized = 0
-            local sound_factor = 0
-            local determinist_spell = false
+-------------------------------------------------------------------------------
+-- HUD: magic fill bar
+-------------------------------------------------------------------------------
 
-            -- Check for the semi determinism mode
-            if (config.override_costs_alwaystosucceed or not (spell.alwaysSucceeds)) and config.determinism_mode == 1 then
-              for _, effect in ipairs(spell.effects) do
-                if effect.object then
-                  for _, effect_id in ipairs(determinist_effect_table) do
-                    if effect.id == effect_id then
-                      determinist_spell = true
-                      log:trace(string.format("Found a determinist effect: %s", effect.id))
-                    end
-                  end
-                end
-              end
-            end
+--- The fill bar under the HUD's magic icon shows the chance a cast of the selected spell will roll.
+---@param e tes3uiEventData
+local function refresh_magic_fill(e)
+  local mobile = tes3.mobilePlayer
+  if not mobile then return end
+  local fill = e.source:findChild("MenuMulti_magic_fill")
+  local icon = e.source:findChild("MenuMulti_magic_icon")
+  if not (fill and icon) then return end
+  local spell = icon:getPropertyObject("MagicMenu_Spell")
+  if not spell or spell.castType ~= tes3.spellType.spell then return end
 
-            local storage_result = SM.get_or_calculate(spell, premade_spells, true, tes3.mobilePlayer)
-            if storage_result then
-              spell_cost = storage_result.cost
-              skill_for_spell = storage_result.skill_for_spell
-            end
+  local ctx = chance_context(mobile)
+  local chance
+  if Formulas.is_birthsign_spell(spell) then
+    chance = vanilla_chance(spell, ctx)
+  else
+    local _, raw_chance = stored_cost_and_chance(spell, ctx)
+    if not raw_chance then return end
+    chance = math.floor(applied_chance(spell, raw_chance, ctx))
+  end
 
-            -- If the spell has been at least partially processed, edit it's UI entry
-            if spell_cost > 0 then
-              log:trace(string.format("Spell processed. ID: %s. Your skill for this spell: %d", spell.id, skill_for_spell))
-              spell_chance = calculate_cast_chance(spell_cost, tes3.mobilePlayer.willpower.current, tes3.mobilePlayer.luck.current, skill_for_spell)
-              -- Fatigue increases costs up to 50% more, these costs do not affect the cast chance
-              fatigue_normalized = math.min(1, tes3.mobilePlayer.fatigue.normalized)
-              if tes3.mobilePlayer.sound < 0 then
-                sound_factor = tes3.mobilePlayer.sound * -0.05
-                log:trace(string.format("Player affected by sound. Increasing spell costs by a factor of %.2f...", sound_factor))
-              end
-              local armor_table = get_armor_coefs(tes3.mobilePlayer)
-              local armor_factor = 0
-              if config.armor_penalty_perc_max > 0 then
-                armor_factor = armor_table.light * math.max(config.armor_penalty_cap_light - tes3.mobilePlayer.lightArmor.current, 0) / config.armor_penalty_cap_light +
-                armor_table.medium * math.max(config.armor_penalty_cap_medium - tes3.mobilePlayer.mediumArmor.current, 0) / config.armor_penalty_cap_medium +
-                armor_table.heavy * math.max(config.armor_penalty_cap_heavy - tes3.mobilePlayer.heavyArmor.current, 0) / config.armor_penalty_cap_heavy
-                armor_factor = armor_factor * (config.armor_penalty_perc_max / 100)
-                if armor_factor > 0 then
-                  log:trace(string.format("Player's costs are increased by armor. Factor: %.2f.", armor_factor))
-                end
-              end
-              spell_cost = spell_cost * (1 + (config.fatigue_penalty_mult / 100) * (1 - fatigue_normalized) + sound_factor + armor_factor)
-              if tes3.mobilePlayer.magicka.current > 100 then
-                spell_cost = spell_cost * (1 + (tes3.mobilePlayer.magicka.current - 100) * config.overflowing_magicka_rate / 10000)
-              end
-              costs[i].text = tostring (math.floor(spell_cost))
-              if spell.alwaysSucceeds and not (config.override_chances_alwaystosucceed) then
-                spell_chance = 100
-                log:trace(string.format("Spell %s has 100 percent success rate.", spell.id))
-              end
-              if config.determinism_mode == 2 or determinist_spell then
-                chances[i].text = "/" .. tostring(math.min(math.floor(spell_chance * 100 / 60), 100))
-              elseif config.determinism_mode == 3 then
-                spell_chance = Formulas.apply_hybrid_mode(spell_chance)
-                chances[i].text = "/" .. tostring(spell_chance)
-              else
-                if spell_chance > 0 then
-                  spell_chance = math.min(spell_chance + config.flat_chance_bonus, 100)
-                end
-                chances[i].text = "/" .. tostring(math.floor(spell_chance))
-              end
+  -- Set on every update: the engine and Tamriel_Data both set this bar too.
+  fill.widget.max = 100
+  fill.widget.current = chance
+  fill:updateLayout()
+end
 
-            end
-        end
-    end)
+---@param e uiActivatedEventData
+local function hud_update(e)
+  if not e.newlyCreated then return end
+  e.element:registerAfter(tes3.uiEvent.preUpdate, refresh_magic_fill, UI_PRIORITY)
 end
 
 -------------------------------------------------------------------------------
@@ -566,6 +706,7 @@ local M = {}
 
 function M.register()
   event.register("uiActivated", magic_menu_update,    { filter = "MenuMagic" })
+  event.register("uiActivated", hud_update,           { filter = "MenuMulti" })
   event.register("uiActivated", spellmaking_block,    { filter = "MenuSpellmaking" })
   event.register("uiActivated", spellmerchant_update, { filter = "MenuServiceSpells" })
   event.register("spellCreated", spellmaking_payment)

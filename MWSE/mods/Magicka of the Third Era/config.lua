@@ -33,6 +33,7 @@ local default_config = {
   leveling_uncapped = false,
   overflowing_magicka_rate = 50,
   --ui_determinism_chance_display = "both", -- not done yet
+  skip_birthsign_spells = true,
   distribute_magicka_expanded_spells = true,
   economy_spellmerchant_mult = 12,
   economy_spellmaker_mult = 40,

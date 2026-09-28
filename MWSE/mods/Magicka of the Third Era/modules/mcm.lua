@@ -89,6 +89,16 @@ main_settings:createOnOffButton{
 }
 
 main_settings:createOnOffButton{
+	label = "Skip Birthsign Spells",
+	description = [[
+      When enabled, spells granted by the player's birthsign are exempt from the mod's cost and cast chance recalculations. Their vanilla values are preserved.
+
+      Leave this on unless you specifically want birthsign spells to be rebalanced by the mod.
+    ]],
+	configKey = "skip_birthsign_spells",
+}
+
+main_settings:createOnOffButton{
 	label = "Distribute Magicka Expanded Spells",
 	description = [[
       Distribute spells from Magicka Expanded to spell merchants. Only distributes packs you have enabled; Cortex spells are not yet supported. Does nothing if Magicka Expanded is not installed.

@@ -6,7 +6,6 @@ local SM            = require("Magicka of the Third Era.modules.spell_manager")
 local Known_Effects = require("Magicka of the Third Era.modules.known_effects")
 local Formulas      = require("Magicka of the Third Era.modules.formulas")
 
-local premade_spells           = require("Magicka of the Third Era.data.premade_spells")
 local custom_price_spells      = require("Magicka of the Third Era.data.custom_price_spells")
 
 local log = mwse.Logger.new{ modName = "Magicka of the Third Era", logLevel = config.log_level }
@@ -130,7 +129,7 @@ local function spellmaking_block(_)
     end
     if not buyButton then return end
     buyButton:registerBefore(tes3.uiEvent.mouseClick,
-        function(mouseClickEventData)
+        function(_)
           if gold_amount < math.floor(spellmaker_cost * config.economy_spellmaker_mult) then
             tes3.messageBox("You don't have enough gold to create this spell")
             return false -- this will prevent the regular mouseclick event from being run
@@ -179,11 +178,6 @@ local function spellmerchant_update(e)
   local knownEffects = Known_Effects.getKnownEffectsTable(tes3.mobilePlayer)
 
   -- my stuff
-  local all_spells = e.element:findChild("MenuServiceSpells_ServiceList")
-  if not all_spells then return end
-  local names_pane = all_spells:findChild("PartScrollPane_pane")
-  if not names_pane then return end
-  local names = names_pane.children
   local service_text = {base_texts = {}, gold_texts = {}, cost_texts = {}, chance_texts = {}}
   local service_chances = {}
   local gold_costs = {}
@@ -192,15 +186,14 @@ local function spellmerchant_update(e)
   local service_school = {}
 
   -- process spells
-  for i=1, #serviceSpells do
-    local spell = serviceSpells[i]
+  for _, spell in ipairs(serviceSpells) do
     local spell_id = spell.id
 
     local spell_cost = 0
     local spell_chance = 0
     local skill_for_spell = 0
 
-    local storage_result = SM.get_or_calculate(spell, premade_spells, true, tes3.mobilePlayer)
+    local storage_result = SM.get_or_calculate(spell, true, tes3.mobilePlayer)
     if storage_result then
       spell_cost = storage_result.cost
       skill_for_spell = storage_result.skill_for_spell
@@ -231,11 +224,11 @@ local function spellmerchant_update(e)
       end
 
       local chance_label = deterministic and "Mastery" or "Cast Chance"
-      names[i].text = tostring(spell.name) .. " | " .. gold_text .. " Gold | " .. cost_text .. " Base Cost | " .. chance_text .. " " .. chance_label
-      if not (config.ui_extended_spell_merchant) then
-        service_text.base_texts[spell] = names[i].text
-      else
+      if config.ui_extended_spell_merchant then
         service_text.base_texts[spell] = tostring(spell.name)
+      else
+        -- Without the extra columns the row holds everything.
+        service_text.base_texts[spell] = tostring(spell.name) .. " | " .. gold_text .. " Gold | " .. cost_text .. " Base Cost | " .. chance_text .. " " .. chance_label
       end
 
       service_chances[spell] = spell_chance
@@ -482,7 +475,7 @@ local function stored_cost_and_chance(spell, ctx)
     skill_for_spell = t[1] * s[1] + t[2] * s[2] + t[3] * s[3] + t[4] * s[4] + t[5] * s[5] + t[6] * s[6]
   else
     -- Not stored yet (or corrupt): calculate and store it.
-    local result = SM.get_or_calculate(spell, premade_spells, true, ctx.mobile)
+    local result = SM.get_or_calculate(spell, true, ctx.mobile)
     if not result then return nil end
     cost, skill_for_spell = result.cost, result.skill_for_spell
   end

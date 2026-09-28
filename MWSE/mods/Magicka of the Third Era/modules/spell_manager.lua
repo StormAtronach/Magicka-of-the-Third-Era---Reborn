@@ -21,6 +21,7 @@ local log = mwse.Logger.new { moduleName = "Spell storage" }
 local config = require("Magicka of the Third Era.config")
 local spell_table = require("Magicka of the Third Era.data.spell_table")
 local synergy_table = require("Magicka of the Third Era.data.synergy_table")
+local premade_spells = require("Magicka of the Third Era.data.premade_spells")
 local Modifier_Logic = require("Magicka of the Third Era.modules.modifier_logic")
 
 -- Modifier effects
@@ -486,15 +487,13 @@ end
 --
 -- Parameters:
 --   spell               tes3spell object
---   config              mod config table
---   premade_spells      table of unique spell cost overrides
 --   save_always_succeeds  bool: true for UI menus (saves weakest-school entry),
 --                                false for cast event (just uses vanilla cost)
 --   mobile              the relevant mobile for skill lookup (usually tes3.mobilePlayer)
 --
 -- Returns a table { cost, skill_for_spell, skill_table } on success, or nil if the
 -- spell has zero total effect cost (i.e. an empty or fully-invalid spell).
-function this.get_or_calculate(spell, premade_spells, save_always_succeeds, mobile)
+function this.get_or_calculate(spell, save_always_succeeds, mobile)
 	local spell_id = spell.id
 
 	-- Cache hit: return stored values directly (evict if skill_table is corrupt)

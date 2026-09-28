@@ -53,15 +53,14 @@ local me_known_packs = {"lore_friendly", "summoning", "teleportation", "tr", "we
 local me_packs = {lore_friendly = false, summoning = false, teleportation = false, tr = false, weather = false, cortex = false}
 
 local me_distribution = require("Magicka of the Third Era.data.me_distribution")
----@param e loadedEventData
-local function magicka_expanded_spells(e)
+local function magicka_expanded_spells()
 
   if not config.distribute_magicka_expanded_spells then return end
 
   log:trace("Looking for Magicka Expanded Spell Packs...")
   -- I don't know if it's a good way to make sure ME creates spells before this check applies
   timer.start{type = timer.real, duration = 3, callback = function()
-    
+
     if tes3.getObject('OJ_ME_BanishDaedraSpell') then
       log:trace("ME Packs: Found Lore-Friendly Pack!")
       me_packs.lore_friendly = true
@@ -86,7 +85,7 @@ local function magicka_expanded_spells(e)
       log:trace("ME Packs: Found Cortex Pack!")
       me_packs.cortex = true
     end
-    
+
     -- distribute spells to merchants, using same logic as Enhanced Detection (thanks for the code!)
     for _, pack_name in ipairs(me_known_packs) do
       if me_packs[pack_name] then

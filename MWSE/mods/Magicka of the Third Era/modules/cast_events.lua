@@ -5,8 +5,6 @@ local config  = require("Magicka of the Third Era.config")
 local SM      = require("Magicka of the Third Era.modules.spell_manager")
 local Formulas = require("Magicka of the Third Era.modules.formulas")
 
-local premade_spells           = require("Magicka of the Third Era.data.premade_spells")
-
 local log = mwse.Logger.new{ modName = "Magicka of the Third Era", logLevel = config.log_level }
 
 -- MOTTE sets the chance and cost outright, so it runs before other mods' handlers,
@@ -77,9 +75,10 @@ local function spell_cost_manipulation(e)
     return
   end
   local caster = e.caster.object.mobile
+  ---@cast caster tes3mobileNPC|tes3mobilePlayer|tes3mobileCreature
   local is_player = caster == tes3.mobilePlayer
 
-  local storage_result = SM.get_or_calculate(e.spell, premade_spells, false, caster)
+  local storage_result = SM.get_or_calculate(e.spell, false, caster)
   if not storage_result then
     -- MOTTE has no cost for this spell. The magic menu shows the vanilla cost for it, so charge that.
     log:debug("Spell %s has no calculated cost. Keeping the vanilla cost of %d.", e.spell.id, e.cost)
